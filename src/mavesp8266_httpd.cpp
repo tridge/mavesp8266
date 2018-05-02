@@ -539,6 +539,22 @@ void handle_notFound(){
     webServer.send(404, FPSTR(kTEXTPLAIN), message);
 }
 
+// simple UDP send speed test
+static void handle_udptest(void)
+{
+    WiFiUDP _udp;
+    IPAddress ip;
+    ip.fromString("192.168.4.2");
+    char buf[20] {};
+    for (uint32_t i=0; i<1000; i++) {
+        _udp.beginPacket(ip, 12345);
+        snprintf(buf, sizeof(buf), "%u\n", i);
+        _udp.write((uint8_t*)(void*)buf, strlen(buf));
+        _udp.endPacket();
+        delay(0);
+    }
+}
+
 //---------------------------------------------------------------------------------
 MavESP8266Httpd::MavESP8266Httpd()
 {
@@ -557,6 +573,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     webServer.on("/getstatus",      handle_getStatus);
     webServer.on("/reboot",         handle_reboot);
     webServer.on("/setup",          handle_setup);
+    webServer.on("/udptest",        handle_udptest);
     webServer.on("/info.json",      handle_getJSysInfo);
     webServer.on("/status.json",    handle_getJSysStatus);
     webServer.on("/log.json",       handle_getJLog);
