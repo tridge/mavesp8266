@@ -41,6 +41,9 @@
 #include "mavesp8266_vehicle.h"
 #include "mavesp8266_httpd.h"
 #include "mavesp8266_component.h"
+#include "FS.h" // for SPIFFS acccess
+
+#include <XModem.h> // for firmware updates
 
 #include <ESP8266mDNS.h>
 
@@ -132,6 +135,10 @@ void reset_interrupt(){
     ESP.reset();
 }
 
+
+XModem xmodem(&Serial, ModeXModem);
+
+
 //---------------------------------------------------------------------------------
 //-- Set things up
 void setup() {
@@ -147,6 +154,131 @@ void setup() {
     attachInterrupt(GPIO02, reset_interrupt, FALLING);
 #endif
     Logger.begin(2048);
+
+
+Serial.println("looking at spiffs");
+    
+    if ( SPIFFS.begin() ) { 
+
+Serial.println("spiffs started");
+
+        //byte binary_firmware_data[120000];  // currently about 102k, so 120k is enough.
+        int bytecount = 0;
+        bool trying = true;
+        File f = SPIFFS.open("RFDSiK900x.bin", "r");
+        if (!f) {
+            Serial.println("firmware file open from SPIFFS failed: RFDSiK900x.bin");
+            trying = false;
+        } else { 
+
+            Serial.println("firmware file open from SPIFFS !: RFDSiK900x.bin");
+
+            // This sucks entire firmware data into ram, it's only ~100k, so we can get away with this.
+            while (f.available()){
+                //binary_firmware_data[bytecount] = f.read();
+                bytecount++;
+            }
+            if (bytecount < 50000 ) { trying = false;} 
+            //f.close();
+
+            // lets make at most 3 attempts to enter AT command mode...
+            for (int r=0; r < 3; r++){
+
+                // try to drop 900 radio into bootloader mode
+                Serial.write("\r");
+                delay(1000); 
+                Serial.write("+++");
+                delay(1000); 
+                Serial.write("AT\r\n");
+                String response = "";
+                // look for response, for max 2 seconds
+                unsigned long now = millis(); 
+                while (Serial.available() && (now+2000 > millis() ) )     {
+                char c = Serial.read();
+                    response += c;
+                }
+                if (trying && (response.indexOf("OK") > 0)) {
+                    Serial.println("GOT OK Response from radio:" + response);
+                } else { 
+                    trying = false;
+                    Serial.println("FALED-TO-GET OK Response from radio:" + response);
+                } 
+
+                
+                // we try the ATI style commands upto 5 times to get a 'sync' if needed.
+                for (int i=0; i < 5; i++){
+                    
+                    // now check if the ATI command says it's a SiK modem of some sort
+                    now = millis(); 
+                    response = "";
+                    if ( trying ) { 
+                        Serial.write("ATI\r");
+                        while (Serial.available() && (now+2000 > millis() ) )     {
+                        char c = Serial.read();
+                            response += c;
+                        }
+                    } 
+                    if (trying && (response.indexOf("SiK") > 0)) {
+                        Serial.println("GOT SiK Response from radio:" + response);
+                    } else { 
+                        trying = false;
+                        Serial.println("FAILED-TO-GET SiK Response from radio:" + response);
+                    } 
+
+                    // now try to put it into bootloader mode
+                    if (trying) { 
+                        Serial.write("\r\n");
+                        delay(200); 
+                        Serial.flush();
+                        Serial.write("AT&UPDATE\r\n");
+                        delay(700); 
+                        Serial.flush();
+                    }
+
+                    // upload!
+                    if (trying) { 
+                    
+                        //print("Uploading %s" % fw)
+                        //self.fw_size = os.path.getsize(fw)
+
+                        Serial.write("UPLOAD\r");
+
+                        //self.expect("Ready", 2)
+                        now = millis(); 
+                        response = "";
+                        Serial.write("UPLOAD\r");
+                        while (Serial.available() && (now+2000 > millis() ) )     {
+                        char c = Serial.read();
+                            response += c;
+                        }
+                        if ((response.indexOf("Ready") > 0)) {
+                            Serial.println("GOT Ready Response from radio:" + response);
+                        } else { 
+                            trying = false;
+                            Serial.println("FAILED-TO-GET Ready Response from radio:" + response);
+                       } 
+
+                        //self.expect("\r\n", 1) //TODO do we need to wait for this newline too? 
+
+
+                        xmodem.sendFile(f, "unused");
+
+                        //f = open(fw, 'rb')
+                        //xm = xmodem.XMODEM(self.getc, self.putc)
+                        //xm.send(f, callback=self.callback)
+
+                        f.close();
+                        //print("Booting new firmware")
+                        Serial.write("BOOTNEW\r");
+
+                    } 
+
+                }
+            }
+
+        }
+    }
+
 
     DEBUG_LOG("\nConfiguring access point...\n");
     DEBUG_LOG("Free Sketch Space: %u\n", ESP.getFreeSketchSpace());
