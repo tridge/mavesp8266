@@ -179,10 +179,10 @@ void setup() {
 
     SoftLogger.begin(2048);
 
-    while (Serial.available()){
+    /* while (Serial.available()){
         swSer.print(Serial.read());
     }
-    
+    */
 
     swSer.println("looking at spiffs\n");
     
@@ -235,8 +235,8 @@ void setup() {
                 // look for response, for max 2 seconds
                 unsigned long now = millis(); 
                 swSer.print("waiting for +++ and AT results"); swSer.println(r);
-//                while (Serial.available() && (now+50000 > millis() ) )     {
-                while ( (now+50000 > millis() ) )     {
+                while (Serial.available() && (now+2000 > millis() ) )     {
+//                while ( (now+50000 > millis() ) )     {
 
                     char c = Serial.read();
                     response += c;
