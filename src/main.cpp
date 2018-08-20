@@ -113,6 +113,9 @@ MavESP8266World* getWorld()
     return &World;
 }
 
+uint8 client_count = 0;
+
+
 //---------------------------------------------------------------------------------
 //-- Wait for a DHCPD client
 void wait_for_client() {
@@ -362,7 +365,7 @@ void setup() {
         WiFi.encryptionType(AUTH_WPA2_PSK);
         WiFi.softAP(Parameters.getWifiSsid(), Parameters.getWifiPassword(), Parameters.getWifiChannel());
         localIP = WiFi.softAPIP();
-        wait_for_client();
+        //wait_for_client();
     }
 
     //-- Boost power to Max
@@ -386,9 +389,22 @@ void setup() {
     updateServer.begin(&updateStatus);
 }
 
+
+void client_check() { 
+
+    uint8 x = wifi_softap_get_station_num();
+    if ( client_count != x ) { 
+        Serial.println("new client/s connected"); 
+        client_count = x;
+        DEBUG_LOG("Got %d client(s)\n", client_count); 
+    } 
+} 
 //---------------------------------------------------------------------------------
 //-- Main Loop
 void loop() {
+
+    client_check(); 
+
     if(!updateStatus.isUpdating()) {
         if (Component.inRawMode()) {
             GCS.readMessageRaw();
