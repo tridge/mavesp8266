@@ -35,6 +35,12 @@
  * @author Gus Grubba <mavlink@grubba.com>
  */
 
+
+#include <SoftwareSerial.h>
+
+SoftwareSerial swSer(14, 16, false, 256);
+
+
 #include "mavesp8266.h"
 #include "mavesp8266_parameters.h"
 #include "mavesp8266_gcs.h"
@@ -86,6 +92,7 @@ MavESP8266Vehicle       Vehicle;
 MavESP8266Httpd         updateServer;
 MavESP8266UpdateImp     updateStatus;
 MavESP8266Log           Logger;
+MavESP8266Log           SoftLogger;
 
 //---------------------------------------------------------------------------------
 //-- Accessors
@@ -96,6 +103,7 @@ public:
     MavESP8266Vehicle*      getVehicle      () { return &Vehicle;       }
     MavESP8266GCS*          getGCS          () { return &GCS;           }
     MavESP8266Log*          getLogger       () { return &Logger;        }
+    MavESP8266Log*          getSoftLogger       () { return &SoftLogger;        }
 };
 
 MavESP8266WorldImp      World;
@@ -144,45 +152,75 @@ XModem xmodem(&Serial, ModeXModem);
 void setup() {
     delay(1000);
     Parameters.begin();
+
+#ifdef ENABLE_SOFTDEBUG
+    // software serial on unrelated pin/s for usb/serial/debug
+    swSer.begin(115200);
+    swSer.println("swSer output for SOFTDEBUG");
+#endif
+
+   Serial.begin(115200);
+
 #ifdef ENABLE_DEBUG
     //   We only use it for non debug because GPIO02 is used as a serial
     //   pin (TX) when debugging.
     Serial1.begin(115200);
+    swSer.println("Serial1 output for DEBUG");
 #else
     //-- Initialized GPIO02 (Used for "Reset To Factory")
     pinMode(GPIO02, INPUT_PULLUP);
     attachInterrupt(GPIO02, reset_interrupt, FALLING);
 #endif
+
     Logger.begin(2048);
 
+    SoftLogger.begin(2048);
 
-Serial.println("looking at spiffs");
+    while (Serial.available()){
+        swSer.print(Serial.read());
+    }
+    
+
+    swSer.println("looking at spiffs\n");
     
     if ( SPIFFS.begin() ) { 
 
-Serial.println("spiffs started");
+        swSer.println("spiffs started\n");
+
+        Dir dir = SPIFFS.openDir(""); //read all files
+        while (dir.next()) {
+            swSer.print(dir.fileName()); swSer.print(" -> ");
+            File f = dir.openFile("r");
+            swSer.println(f.size());
+        }
 
         //byte binary_firmware_data[120000];  // currently about 102k, so 120k is enough.
         int bytecount = 0;
         bool trying = true;
-        File f = SPIFFS.open("RFDSiK900x.bin", "r");
+        File f = SPIFFS.open("/RFDSiK900x.bin", "r");
         if (!f) {
-            Serial.println("firmware file open from SPIFFS failed: RFDSiK900x.bin");
+            swSer.println("firmware file open from SPIFFS failed: /RFDSiK900x.bin\n");
             trying = false;
         } else { 
 
-            Serial.println("firmware file open from SPIFFS !: RFDSiK900x.bin");
+            swSer.println("firmware file open from SPIFFS !: /RFDSiK900x.bin\n");
 
             // This sucks entire firmware data into ram, it's only ~100k, so we can get away with this.
+            swSer.println("file size clecking....\n");
             while (f.available()){
-                //binary_firmware_data[bytecount] = f.read();
+                int t = f.read();
                 bytecount++;
             }
+
+            swSer.println("file size cleck complete\n");
             if (bytecount < 50000 ) { trying = false;} 
             //f.close();
+            swSer.println("blah\n");
 
             // lets make at most 3 attempts to enter AT command mode...
             for (int r=0; r < 3; r++){
+
+                swSer.print("+++ Attempt Number: "); swSer.println(r);
 
                 // try to drop 900 radio into bootloader mode
                 Serial.write("\r");
@@ -193,21 +231,28 @@ Serial.println("spiffs started");
                 String response = "";
                 // look for response, for max 2 seconds
                 unsigned long now = millis(); 
-                while (Serial.available() && (now+2000 > millis() ) )     {
-                char c = Serial.read();
+                swSer.print("waiting for +++ and AT results"); swSer.println(r);
+//                while (Serial.available() && (now+50000 > millis() ) )     {
+                while ( (now+50000 > millis() ) )     {
+
+                    char c = Serial.read();
                     response += c;
+                    swSer.print(c);
                 }
+                swSer.print("got +++ and AT results"); swSer.println(r);
                 if (trying && (response.indexOf("OK") > 0)) {
-                    Serial.println("GOT OK Response from radio:" + response);
+                    swSer.println("GOT OK Response from radio.\n");
                 } else { 
                     trying = false;
-                    Serial.println("FALED-TO-GET OK Response from radio:" + response);
+                    swSer.println("FALED-TO-GET OK Response from radio.\n");
                 } 
 
                 
                 // we try the ATI style commands upto 5 times to get a 'sync' if needed.
                 for (int i=0; i < 5; i++){
-                    
+
+                    swSer.print("ATI Attempt Number: "); swSer.println(i);
+
                     // now check if the ATI command says it's a SiK modem of some sort
                     now = millis(); 
                     response = "";
@@ -218,11 +263,12 @@ Serial.println("spiffs started");
                             response += c;
                         }
                     } 
+                    swSer.print("ATI reslts.. "); swSer.println(i);
                     if (trying && (response.indexOf("SiK") > 0)) {
-                        Serial.println("GOT SiK Response from radio:" + response);
+                        swSer.println("GOT SiK Response from radio.\n");
                     } else { 
                         trying = false;
-                        Serial.println("FAILED-TO-GET SiK Response from radio:" + response);
+                        swSer.println("FAILED-TO-GET SiK Response from radio.\n");
                     } 
 
                     // now try to put it into bootloader mode
@@ -242,6 +288,7 @@ Serial.println("spiffs started");
                         //self.fw_size = os.path.getsize(fw)
 
                         Serial.write("UPLOAD\r");
+                        swSer.println("UPLOAD\r\n");
 
                         //self.expect("Ready", 2)
                         now = millis(); 
@@ -252,10 +299,10 @@ Serial.println("spiffs started");
                             response += c;
                         }
                         if ((response.indexOf("Ready") > 0)) {
-                            Serial.println("GOT Ready Response from radio:" + response);
+                            swSer.println("GOT Ready Response from radio.\n");
                         } else { 
                             trying = false;
-                            Serial.println("FAILED-TO-GET Ready Response from radio:" + response);
+                            swSer.println("FAILED-TO-GET Ready Response from radio.\n");
                        } 
 
                         //self.expect("\r\n", 1) //TODO do we need to wait for this newline too? 
@@ -270,6 +317,7 @@ Serial.println("spiffs started");
                         f.close();
                         //print("Booting new firmware")
                         Serial.write("BOOTNEW\r");
+                        swSer.println("BOOTNEW\r\n");
 
                     } 
 

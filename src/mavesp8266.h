@@ -68,14 +68,39 @@ class MavESP8266GCS;
 #define MAVESP8266_VERSION_BUILD    2
 #define MAVESP8266_VERSION          ((MAVESP8266_VERSION_MAJOR << 24) & 0xFF00000) | ((MAVESP8266_VERSION_MINOR << 16) & 0x00FF0000) | (MAVESP8266_VERSION_BUILD & 0xFFFF)
 
+
+//Serial uses UART0, which is mapped to pins GPIO1 (TX) and GPIO3 (RX).  the pins for Serial0 can go on other pins if configured as such.
+// after a Serial.swap() Serial0 uses  GPIO13 and GPIO15 ( TXD2 and RXD2 )
+
+//Serial1 uses UART1, TX pin is GPIO2. UART1 can not be used to receive data because normally it's RX pin is occupied for flash chip connection ( GPIO8 )
+
+
+// more info here : https://github.com/esp8266/Arduino/blob/master/doc/reference.rst#serial
+
+//SerialX ( software serial ) , might be used too on some pins (pin >= 0 && pin <= 5) || (pin >= 12 && pin <= 15) see https://github.com/plerup/espsoftwareserial
+
+
 //-- Debug sent out to Serial1 (GPIO02), which is TX only (no RX).
-//#define ENABLE_DEBUG
+//#define ENABLE_DEBUG true
+
+//  Debug sent out to softserial configured to use GPIO14 and GPIO16
+#define ENABLE_SOFTDEBUG true
+
 
 #ifdef ENABLE_DEBUG
 #define DEBUG_LOG(format, ...) do { getWorld()->getLogger()->log(format, ## __VA_ARGS__); } while(0)
 #else
+
+#ifdef ENABLE_SOFTDEBUG
+#define DEBUG_LOG(format, ...) do { getWorld()->getSoftLogger()->log(format, ## __VA_ARGS__); } while(0)
+#else
+
 #define DEBUG_LOG(format, ...) do { } while(0)
 #endif
+
+#endif
+
+
 
 //---------------------------------------------------------------------------------
 //-- Link Status
@@ -153,6 +178,7 @@ public:
     virtual MavESP8266Vehicle*      getVehicle      () = 0;
     virtual MavESP8266GCS*          getGCS          () = 0;
     virtual MavESP8266Log*          getLogger       () = 0;
+    virtual MavESP8266Log*          getSoftLogger       () = 0;
 };
 
 //---------------------------------------------------------------------------------

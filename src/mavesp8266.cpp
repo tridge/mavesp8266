@@ -38,6 +38,10 @@
 #include "mavesp8266.h"
 #include "mavesp8266_parameters.h"
 
+#include <SoftwareSerial.h>
+
+extern SoftwareSerial swSer;
+
 //---------------------------------------------------------------------------------
 //-- Base Comm Link
 MavESP8266Bridge::MavESP8266Bridge()
@@ -108,6 +112,9 @@ MavESP8266Log::log(const char *format, ...) {
     size_t len = ets_vsnprintf(temp, 1024, format, arg);
 #ifdef ENABLE_DEBUG
     Serial1.print(temp);
+#endif
+#ifdef ENABLE_SOFTDEBUG
+    swSer.print(temp);
 #endif
 
     if(_buffer) {
