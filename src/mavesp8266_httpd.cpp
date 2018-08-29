@@ -42,10 +42,16 @@
 #include "mavesp8266_vehicle.h"
 
 #include <ESP8266WebServer.h>
+#include <FS.h> // spiffs support
+
+
+#include <SoftwareSerial.h>
+extern SoftwareSerial swSer;
 
 const char PROGMEM kTEXTPLAIN[]  = "text/plain";
 const char PROGMEM kTEXTHTML[]   = "text/html";
 const char PROGMEM kACCESSCTL[]  = "Access-Control-Allow-Origin";
+
 const char PROGMEM kUPLOADFORM[] = "<h1><a href='/'>MAVLink WiFi Bridge</a></h1><form method='POST' action='/upload' enctype='multipart/form-data'><input type='file' name='update'><br><input type='submit' value='Update'></form>";
 const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>MavLink Bridge</title></head><body><h1><a href='/'>MAVLink WiFi Bridge</a></h1>";
 const char PROGMEM kBADARG[]     = "BAD ARGS";
@@ -91,6 +97,9 @@ ESP8266WebServer    webServer(80);
 MavESP8266Update*   updateCB    = NULL;
 bool                started     = false;
 
+//holds the current upload, if there is one, except OTA binary uploads, done elsewhere.
+File fsUploadFile;
+
 //---------------------------------------------------------------------------------
 void setNoCacheHeaders() {
     webServer.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -127,6 +136,10 @@ void handle_upload() {
 }
 
 //---------------------------------------------------------------------------------
+
+// push some notification/s during the firmware update through the soft-serial port...
+#define DEBUG_SERIAL swSer
+
 void handle_upload_status() {
     bool success  = true;
     if(!started) {
@@ -138,7 +151,7 @@ void handle_upload_status() {
     HTTPUpload& upload = webServer.upload();
     if(upload.status == UPLOAD_FILE_START) {
         #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.setDebugOutput(true);
+            //DEBUG_SERIAL.setDebugOutput(true);
         #endif
         WiFiUDP::stopAll();
         Serial.end();
@@ -164,6 +177,7 @@ void handle_upload_status() {
             #ifdef DEBUG_SERIAL
                 DEBUG_SERIAL.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
             #endif
+            
         } else {
             #ifdef DEBUG_SERIAL
                 Update.printError(DEBUG_SERIAL);
@@ -171,7 +185,7 @@ void handle_upload_status() {
             success = false;
         }
         #ifdef DEBUG_SERIAL
-            DEBUG_SERIAL.setDebugOutput(false);
+            //DEBUG_SERIAL.setDebugOutput(false);
         #endif
     }
     yield();
@@ -224,10 +238,23 @@ static void handle_root()
     message += " ";
     message += BUILD_TIME_STRING;
     message += "<p>\n";
+
+
+    // if we have an index.html in spiffs, use that, otherwise use a basic version that's included below.
+    File f = SPIFFS.open("/index.htm", "r");
+    if ( f ) { 
+        //while ( f.available() ) { 
+            message += f.readString();
+        //}
+    } else { 
+    
     message += "<ul>\n";
     message += "<li><a href='/getstatus'>Get Status</a>\n";
     message += "<li><a href='/setup'>Setup</a>\n";
-    message += "<li><a href='/getparameters'>Get Parameters</a>\n";
+    message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
+    message += "<li><a href='/r990x_params.txt'>Get 900x Radio Parameters</a>\n";
+    message += "<li><a href='/edit?file=r900x_params.txt'>Edit 900x Radio Parameters File</a>\n";
+    message += "<li><a href='/save900xparams'>Activate 900x params after editing.</a>\n";
     message += "<li><a href='/update'>Update Firmware</a>\n";
     message += "<li><a href='/reboot'>Reboot</a>\n";
     message += "</ul>\n";
@@ -240,7 +267,9 @@ static void handle_root()
     message += "<li><a href='https://github.com/ArduPilot/mavesp8266'>ESP8266 Source Code</a>\n";
     message += "<li><a href='http://firmware.ardupilot.org/Tools/MAVESP8266/'>ESP8266 Firmware Updates</a>\n";
     message += "</ul>\n";
-    message += "</body>";
+    message += "</body></html>";
+
+    }
     setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
@@ -554,7 +583,7 @@ static void handle_reboot()
 
 //---------------------------------------------------------------------------------
 //-- 404
-void handle_notFound(){
+static void handle_notFound(){
     String message = "File Not Found\n\n";
     message += "URI: ";
     message += webServer.uri();
@@ -569,6 +598,176 @@ void handle_notFound(){
     webServer.send(404, FPSTR(kTEXTPLAIN), message);
 }
 
+#define DBG_OUTPUT_PORT swSer
+
+String getContentType(String filename) {
+  if (webServer.hasArg("download")) {
+    return "application/octet-stream";
+  } else if (filename.endsWith(".htm")) {
+    return "text/html";
+  } else if (filename.endsWith(".html")) {
+    return "text/html";
+  } else if (filename.endsWith(".css")) {
+    return "text/css";
+  } else if (filename.endsWith(".js")) {
+    return "application/javascript";
+  } else if (filename.endsWith(".png")) {
+    return "image/png";
+  } else if (filename.endsWith(".gif")) {
+    return "image/gif";
+  } else if (filename.endsWith(".jpg")) {
+    return "image/jpeg";
+  } else if (filename.endsWith(".ico")) {
+    return "image/x-icon";
+  } else if (filename.endsWith(".xml")) {
+    return "text/xml";
+  } else if (filename.endsWith(".pdf")) {
+    return "application/x-pdf";
+  } else if (filename.endsWith(".zip")) {
+    return "application/x-zip";
+  } else if (filename.endsWith(".gz")) {
+    return "application/x-gzip";
+  } else if (filename.endsWith(".txt")) {
+    return "text/plain";
+  } //else if (filename.endsWith(".json")) {
+ //   return "application/json";
+ // }
+  return "text/plain";
+}
+
+
+extern void r990x_saveparams(); 
+
+void save900xparams() { 
+
+    if (r990x_saveparams() ) { 
+        webServer.send(200, "text/plain", "900x radio params saved to modem OK. <a href=/>Click here to continue</a>.");
+    else { 
+        webServer.send(200, "text/plain", "900x radio params save FAILED. Does file /r990x_params.txt exist? <a href=/>Click here to continue</a>.");
+    }
+} 
+
+
+bool handleFileRead(String path) {
+  DBG_OUTPUT_PORT.println("handleFileRead: " + path);
+  if (path.endsWith("/")) {
+    path += "index.htm";
+  }
+  String contentType = getContentType(path);
+  String pathWithGz = path + ".gz";
+  if (SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)) {
+    if (SPIFFS.exists(pathWithGz)) {
+      path += ".gz";
+    }
+    File file = SPIFFS.open(path, "r");
+    webServer.streamFile(file, contentType);
+    file.close();
+    return true;
+  }
+  return false;
+}
+
+void handleFileUpload() {
+    //DBG_OUTPUT_PORT.println("handleFileUpload 0: "); 
+  if (webServer.uri() != "/edit") {
+    return;
+  }
+
+  HTTPUpload& upload = webServer.upload();
+  DBG_OUTPUT_PORT.print("status:"); DBG_OUTPUT_PORT.println(upload.status);
+  if (upload.status == UPLOAD_FILE_START) {
+    String filename = upload.filename;
+    if (!filename.startsWith("/")) {
+      filename = "/" + filename;
+    }
+    DBG_OUTPUT_PORT.print("handleFileUpload Name: "); DBG_OUTPUT_PORT.println(filename);
+    fsUploadFile = SPIFFS.open(filename, "w");
+    filename = String();
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    DBG_OUTPUT_PORT.print("handleFileUpload Data: "); DBG_OUTPUT_PORT.println(upload.currentSize);
+    if (fsUploadFile) {
+      fsUploadFile.write(upload.buf, upload.currentSize);
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (fsUploadFile) {
+      fsUploadFile.close();
+    }
+    DBG_OUTPUT_PORT.print("handleFileUpload Size: "); DBG_OUTPUT_PORT.println(upload.totalSize);
+  }
+  webServer.send(200, "text/plain", "");
+}
+
+// spiffs files  goto url:  http://192.168.4.1/list?dir=/
+void handleFileList() {
+  if (!webServer.hasArg("dir")) {
+    webServer.send(500, "text/plain", "BAD ARGS");
+    return;
+  }
+
+  String path = webServer.arg("dir");
+  DBG_OUTPUT_PORT.println("handleFileList: " + path);
+  Dir dir = SPIFFS.openDir(path);
+  path = String();
+
+  String output = "[";
+  while (dir.next()) {
+    File entry = dir.openFile("r");
+    if (output != "[") {
+      output += ',';
+    }
+    bool isDir = false;
+    output += "{\"type\":\"";
+    output += (isDir) ? "dir" : "file";
+    output += "\",\"name\":\"";
+    output += String(entry.name()).substring(1);
+    output += "\"}";
+    entry.close();
+  }
+
+  output += "]";
+  webServer.send(200, "text/json", output);
+}
+
+void handleFileDelete() {
+  if (webServer.args() == 0) {
+    return webServer.send(500, "text/plain", "BAD ARGS");
+  }
+  String path = webServer.arg(0);
+  DBG_OUTPUT_PORT.println("handleFileDelete: " + path);
+  if (path == "/") {
+    return webServer.send(500, "text/plain", "BAD PATH");
+  }
+  if (!SPIFFS.exists(path)) {
+    return webServer.send(404, "text/plain", "FileNotFound");
+  }
+  SPIFFS.remove(path);
+  webServer.send(200, "text/plain", "");
+  path = String();
+}
+
+void handleFileCreate() {
+  if (webServer.args() == 0) {
+    return webServer.send(500, "text/plain", "BAD ARGS");
+  }
+  String path = webServer.arg(0);
+  DBG_OUTPUT_PORT.println("handleFileCreate: " + path);
+  if (path == "/") {
+    return webServer.send(500, "text/plain", "BAD PATH");
+  }
+  if (SPIFFS.exists(path)) {
+    return webServer.send(500, "text/plain", "FILE EXISTS");
+  }
+  File file = SPIFFS.open(path, "w");
+  if (file) {
+    file.close();
+  } else {
+    return webServer.send(500, "text/plain", "CREATE FAILED");
+  }
+  webServer.send(200, "text/plain", "");
+  path = String();
+}
+
+
 //---------------------------------------------------------------------------------
 MavESP8266Httpd::MavESP8266Httpd()
 {
@@ -577,6 +776,8 @@ MavESP8266Httpd::MavESP8266Httpd()
 
 //---------------------------------------------------------------------------------
 //-- Initialize
+
+
 void
 MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
 {
@@ -591,8 +792,74 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     webServer.on("/status.json",    handle_getJSysStatus);
     webServer.on("/log.json",       handle_getJLog);
     webServer.on("/update",         handle_update);
-    webServer.on("/upload",         HTTP_POST, handle_upload, handle_upload_status);
-    webServer.onNotFound(           handle_notFound);
+
+    webServer.on("/save900xparams",         save900xparams);
+
+    webServer.on("/upload",         HTTP_POST, handle_upload, handle_upload_status); //
+
+
+    webServer.onFileUpload([]() {  
+      if (webServer.uri() != "/edit") return;
+      HTTPUpload& upload = webServer.upload();
+      DBG_OUTPUT_PORT.println("onFileUpload "); 
+      File UploadFile;
+      if (upload.status == UPLOAD_FILE_START) {
+        String filename = upload.filename;
+        Serial.print("Upload Name: "); Serial.println(filename);
+        UploadFile = SPIFFS.open("/data/" + filename, "w");
+      } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (UploadFile)
+          UploadFile.write(upload.buf, upload.currentSize);
+      } else if (upload.status == UPLOAD_FILE_END) {
+        if (UploadFile)
+          UploadFile.close();
+          //FileRead();  // After file downloads, read it
+      }
+
+    }); 
+    //webServer.onNotFound(           handle_notFound);
+
+
+    //list directory
+    webServer.on("/list", HTTP_GET, handleFileList);
+
+    //load editor
+    webServer.on("/edit", HTTP_GET, []() {
+    if (!handleFileRead("/edit.htm")) {
+      webServer.send(404, "text/plain", "FileNotFound");
+    }
+    });
+
+    //create file
+    webServer.on("/edit", HTTP_PUT, handleFileCreate);
+
+    //delete file
+    webServer.on("/edit", HTTP_DELETE, handleFileDelete);
+
+    //delete file
+    //webServer.on("/edit", HTTP_POST, handleFileUpload);
+
+
+   //TIP:  /edit endpoint uses ace.js and friends from https://github.com/ajaxorg/ace-builds/tree/master/src
+
+    //first callback is called after the request has ended with all parsed arguments
+    //second callback handles file uploads at that location
+    //webServer.on("/edit", HTTP_POST, handleFileUpload);
+
+    //webServer.send(200, "text/plain", "");
+    //}, handleFileUpload);
+
+    webServer.on("/edit", HTTP_POST, [](){ webServer.send(200, "text/plain", ""); }, handleFileUpload);
+
+
+    //called when the url is not defined here
+    //use it to load content from SPIFFS
+    webServer.onNotFound([]() {
+    if (!handleFileRead(webServer.uri())) {
+      webServer.send(404, "text/plain", "FileNotFound");
+    }
+    });
+
     webServer.begin();
 }
 
