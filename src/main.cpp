@@ -226,7 +226,7 @@ bool r990x_getparams() {
      return true;
 } 
 
-// TODO 
+
 bool r990x_saveparams() { 
 
 // iterate over the params found in r990x_params.txt and save those that aren't already set correctly
@@ -455,7 +455,7 @@ bool r900x_upload () {
 
 void r900x_setup() { 
 
-    //delay(3000);  // allow time for 900x radio to complete its startup.? 
+    delay(3000);  // allow time for 900x radio to complete its startup.? 
 
     if ( SPIFFS.begin() ) { 
       swSer.println("spiffs started\n");
@@ -465,6 +465,7 @@ void r900x_setup() {
       //# TODO create/format SPIFFS filesystem and leave it empty. ?
     }
 
+swSer.flush();
     /* 
     Dir dir = SPIFFS.openDir(""); //read all files
     while (dir.next()) {
@@ -508,6 +509,41 @@ void r900x_setup() {
 
 } 
 
+
+#define PROTOCOL_TCP
+
+
+#ifdef PROTOCOL_TCP
+#include <WiFiClient.h>
+WiFiServer tcpserver(23);
+WiFiClient tcpclient;
+
+#define bufferSize 512  
+#define packTimeout 1
+#define max_tcp_size 500 // never SEND any tcp packet over this size
+#define max_serial_size 128 // never SEND any serial chunk over this size
+
+// raw serial<->tcp passthrough buffers, if used.
+uint8_t buf1[bufferSize];
+uint8_t i1=0;
+
+uint8_t buf2[bufferSize];
+uint8_t i2=0;
+
+// variables for tcp-serial passthrough stats
+long unsigned int msecs_counter = 0;
+long int secs = 0;
+long int stats_serial_in = 0;
+long int stats_tcp_in = 0;
+long int stats_serial_pkts = 0;
+long int stats_tcp_pkts = 0;
+long int largest_serial_packet = 0;
+long int largest_tcp_packet = 0;
+#endif
+bool tcp_passthrumode = false;
+
+//#define DEBUG_LOG swSer.println
+
 //---------------------------------------------------------------------------------
 //-- Set things up
 void setup() {
@@ -524,6 +560,8 @@ void setup() {
 
    SmartSerial->begin();
 
+    swSer.println("blah1"); swSer.flush();
+
 #ifdef ENABLE_DEBUG
     //   We only use it for non debug because GPIO02 is used as a serial
     //   pin (TX) when debugging.
@@ -535,17 +573,29 @@ void setup() {
     attachInterrupt(GPIO02, reset_interrupt, FALLING);
 #endif
 
+    swSer.println("blah2"); swSer.flush();
+
     Logger.begin(2048);
 
     SoftLogger.begin(2048);
 
+    // make sure programmed with correct spiffs settings.
+    String realSize = String(ESP.getFlashChipRealSize());
+    String ideSize = String(ESP.getFlashChipSize());
+    bool flashCorrectlyConfigured = realSize.equals(ideSize);
+    if(!flashCorrectlyConfigured)  swSer.println("flash incorrectly configured,  cannot start, IDE size: " + ideSize + ", real size: " + realSize);
+
+    swSer.println("blah3"); swSer.flush();
     r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
 
+    swSer.println("blah4"); swSer.flush();
 
     DEBUG_LOG("\nConfiguring access point...\n");
     DEBUG_LOG("Free Sketch Space: %u\n", ESP.getFreeSketchSpace());
 
     WiFi.disconnect(true);
+
+    swSer.println("blah5"); swSer.flush();
 
     if(Parameters.getWifiMode() == WIFI_MODE_STA){
         DEBUG_LOG("\nEntering station mode...\n");
@@ -580,7 +630,7 @@ void setup() {
         localIP = WiFi.softAPIP();
         //wait_for_client();
     }
-
+swSer.println("blah6");
     //-- Boost power to Max
     WiFi.setOutputPower(20.5);
     //-- MDNS
@@ -588,18 +638,29 @@ void setup() {
     sprintf(mdsnName, "MavEsp8266-%d",localIP[3]);
     MDNS.begin(mdsnName);
     MDNS.addService("http", "tcp", 80);
+
+swSer.println("blah7");
+    #ifdef PROTOCOL_TCP
+    swSer.println("Starting TCP Server on port 23");
+    tcpserver.begin(); // start TCP server 
+    #endif
+
     //-- Initialize Comm Links
     DEBUG_LOG("Start WiFi Bridge\n");
     DEBUG_LOG("Local IP: %s\n", localIP.toString().c_str());
 
     Parameters.setLocalIPAddress(localIP);
-    IPAddress gcs_ip(localIP);
+    //IPAddress gcs_ip(localIP);
     //-- I'm getting bogus IP from the DHCP server. Broadcasting for now.
-    gcs_ip[3] = 255;
-    GCS.begin(&Vehicle, gcs_ip);
-    Vehicle.begin(&GCS);
+    //gcs_ip[3] = 255;
+swSer.println("blah8");
+    
+    //GCS.begin(&Vehicle, gcs_ip);
+    //Vehicle.begin(&GCS);
+
     //-- Initialize Update Server
-    updateServer.begin(&updateStatus);
+    updateServer.begin(&updateStatus); //TODO unf88k this.
+swSer.println("setup complete");
 }
 
 
@@ -610,25 +671,145 @@ void client_check() {
         Serial.println("new client/s connected"); 
         client_count = x;
         DEBUG_LOG("Got %d client(s)\n", client_count); 
+
+        if (client_count != 0 ) { 
+
+           //Parameters.setLocalIPAddress(localIP);
+            IPAddress gcs_ip(localIP);
+            //-- I'm getting bogus IP from the DHCP server. Broadcasting for now.
+            gcs_ip[3] = 255;
+            swSer.println("setting UDP client IP!"); 
+            
+            GCS.begin(&Vehicle, gcs_ip);
+            swSer.println("GCS.begin finished"); 
+            Vehicle.begin(&GCS);
+            swSer.println("Vehicle.begin finished"); 
+    
+        } 
+
     } 
 } 
+
+bool tcp_check() { 
+#ifdef PROTOCOL_TCP
+
+    if (!tcpclient.connected()) { 
+        tcpclient = tcpserver.available();
+        if ( tcpclient ) { 
+            return true;
+        } else { 
+            return false;
+        }
+    } else { 
+        return true;
+    }
+#endif
+    return false;  // if compiled without tcp, always return false.
+} 
+
+
+void handle_tcp_and_serial_passthrough() {
+
+    #ifdef PROTOCOL_TCP
+
+      if ( millis() > msecs_counter +1000 ) { 
+        msecs_counter = millis(); 
+        secs++;
+
+        swSer.println("stats:");
+        swSer.print("serial in:"); swSer.println(stats_serial_in);
+        swSer.print("tcp in   :"); swSer.println(stats_tcp_in);
+        swSer.print("ser pkts :"); swSer.println(stats_serial_pkts);
+        swSer.print("tcp pkts :"); swSer.println(stats_tcp_pkts);    
+
+        swSer.print("largest serial pkt:"); swSer.println(largest_serial_packet);    
+        swSer.print("largest tcp pkt:"); swSer.println(largest_tcp_packet);    
+
+
+        swSer.println("----------------------------------------------");
+        stats_serial_in=0;
+        stats_tcp_in=0;
+        stats_serial_pkts=0;
+        stats_tcp_pkts=0;
+      }
+
+      if(tcpclient.available()) {
+        while(tcpclient.available()) {
+          buf1[i1] = (uint8_t)tcpclient.read(); // read char from client (RoboRemo app)
+          stats_tcp_in++;
+          if(i1<bufferSize-1) i1++;
+          if ( i1 >= max_tcp_size ) { // don't exceed max tcp size, even if incoming data is continuous.
+            Serial.write(buf1, i1); stats_serial_pkts++; if ( i1 > largest_tcp_packet ) largest_tcp_packet = i1;
+            i1 = 0;
+            swSer.println("max tcp break");
+            break;
+          }
+        }
+        // now send to UART:
+        Serial.write(buf1, i1);  stats_serial_pkts++; if ( i1 > largest_tcp_packet ) largest_tcp_packet = i1;
+        i1 = 0;
+      }
+
+      if(Serial.available()) {
+
+        // read the data until pause or max size reached
+        
+        while(1) {
+          if(Serial.available()) {
+            buf2[i2] = (char)Serial.read(); // read char from UART
+            stats_serial_in++;
+            if(i2<bufferSize-1) i2++;
+            if ( i2 >= max_tcp_size ) { // don't exceed max serial size, even if incoming data is continuous.
+                tcpclient.write((char*)buf2, i2); stats_tcp_pkts++; if ( i2 > largest_serial_packet ) largest_serial_packet = i2;
+                i2 = 0;
+                swSer.println("max serial break");
+                break;
+            }
+          } else {
+            //delayMicroseconds(packTimeoutMicros);
+            delay(packTimeout);
+            if(!Serial.available()) {
+              break;
+            }
+          }
+        }
+        // now send to WiFi:
+        tcpclient.write((char*)buf2, i2);  stats_tcp_pkts++; if ( i2 > largest_serial_packet ) largest_serial_packet = i2;
+        i2 = 0;
+      }
+    #endif
+
+}
 //---------------------------------------------------------------------------------
 //-- Main Loop
 void loop() {
 
+//swSer.println("loop");
     client_check(); 
 
-    if(!updateStatus.isUpdating()) {
-        if (Component.inRawMode()) {
-            GCS.readMessageRaw();
-            delay(0);
-            Vehicle.readMessageRaw();
+//swSer.println("loop2");
+    if (tcp_check() ) {  // if a client connects to the tcp server, stop doing everything else and handle that
+        if ( tcp_passthrumode == false ) {tcp_passthrumode = true;
+        swSer.println("entered tcp-serial passthrough mode"); }
+        handle_tcp_and_serial_passthrough();
+//swSer.println("loop3");
+    } else { // do udp & mavlink comms by default and when no tcp clients are available
 
-        } else {
-            GCS.readMessage();
-            delay(0);
-            Vehicle.readMessage();
+        if ( tcp_passthrumode == true ) { tcp_passthrumode = false; swSer.println("exited tcp-serial passthrough mode"); }
+//swSer.println("loop4");
+        if(!updateStatus.isUpdating()) {
+            if (Component.inRawMode()) {
+                GCS.readMessageRaw();
+                delay(0);
+                Vehicle.readMessageRaw();
+
+            } else {
+                GCS.readMessage();
+                delay(0);
+                Vehicle.readMessage();
+            }
         }
+//swSer.println("loop5");
     }
     updateServer.checkUpdates();
 }

@@ -129,7 +129,7 @@ MavESP8266GCS::_readMessage()
                         if(_message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                             //-- We no longer need DHCP
                             if(getWorld()->getParameters()->getWifiMode() == WIFI_MODE_AP) {
-                                wifi_softap_dhcps_stop();
+                                //wifi_softap_dhcps_stop();
                             }
                             _heard_from      = true;
                             _system_id       = _message.sysid;

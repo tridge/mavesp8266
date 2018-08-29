@@ -254,7 +254,7 @@ static void handle_root()
     message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
     message += "<li><a href='/r990x_params.txt'>Get 900x Radio Parameters</a>\n";
     message += "<li><a href='/edit?file=r900x_params.txt'>Edit 900x Radio Parameters File</a>\n";
-    message += "<li><a href='/save900xparams'>Activate 900x params after editing.</a>\n";
+    message += "<li><a href='/save900xparams'>Activate 900x params after editing.(be sure radio is *not* connected to a vehicle or remove device when you press this)</a>\n";
     message += "<li><a href='/update'>Update Firmware</a>\n";
     message += "<li><a href='/reboot'>Reboot</a>\n";
     message += "</ul>\n";
@@ -636,13 +636,13 @@ String getContentType(String filename) {
 }
 
 
-extern void r990x_saveparams(); 
+extern bool r990x_saveparams(); // its in main.cpp
 
 void save900xparams() { 
 
     if (r990x_saveparams() ) { 
-        webServer.send(200, "text/plain", "900x radio params saved to modem OK. <a href=/>Click here to continue</a>.");
-    else { 
+        webServer.send(200, "text/plain", "900x radio params saved to modem OK. </pre><a href=/>Click here to continue</a>.<pre>");
+    } else { 
         webServer.send(200, "text/plain", "900x radio params save FAILED. Does file /r990x_params.txt exist? <a href=/>Click here to continue</a>.");
     }
 } 
