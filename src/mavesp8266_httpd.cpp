@@ -249,7 +249,8 @@ static void handle_root()
     } else { 
     
     message += "<ul>\n";
-    message += "<li><a href='/getstatus'>Get Status</a>\n";
+    message += "<li><a href='/getstatus'>Get Status ( UDP/Mavlink mode)</a>\n";
+    message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode) </a>\n";
     message += "<li><a href='/setup'>Setup</a>\n";
     message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
     message += "<li><a href='/r990x_params.txt'>Get 900x Radio Parameters</a>\n";
@@ -402,6 +403,64 @@ static void handle_getStatus()
     message += "<tr><td>Parameters CRC</td><td>";
     message += paramCRC;
     message += "</td></tr>\n";
+    message += "</table>";
+    message += "</body>";
+    setNoCacheHeaders();
+    webServer.send(200, FPSTR(kTEXTHTML), message);
+}
+
+//---------------------------------------------------------------------------------
+static void handle_getStatusTcp()
+{
+    if(!flash)
+        flash = ESP.getFreeSketchSpace();
+
+    String message = FPSTR(kHEADER);
+
+// kinda hacky to use extern global vars here, but it'll do for now.
+extern long int stats_serial_in;
+extern long int stats_tcp_in;
+extern long int stats_serial_pkts;
+extern long int stats_tcp_pkts;
+extern long int largest_serial_packet;
+extern long int largest_tcp_packet;
+extern bool tcp_passthrumode;
+
+    message += "<p>TCP Comms Status - last 1 second of TCP throughput.</p><br>";
+
+    if ( tcp_passthrumode == true ) { 
+    message += "<font color=green>Currently In TCP pass-through mode right now.</font><br>\n";
+    } else { 
+    message += "<font color=red>NOT In TCP pass-through mode right now</font><br>\n";
+    }
+
+    message += "<table><tr><td width=\"240\">TCP Bytes Received from GCS</td><td>";
+    message += stats_tcp_in;
+    message += "</td></tr>";
+
+    message += "<tr><td>TCP Packets Sent to GCS</td><td>";
+    message += stats_tcp_pkts;
+    message += "</td></tr>";
+
+    message += "<tr><td>Serial Bytes Received from Vehicle</td><td>";
+    message += stats_serial_in;
+    message += "</td></tr>";
+
+    message += "<tr><td>Serial Packets Sent to Vehicle</td><td>";
+    message += stats_serial_pkts;
+    message += "</td></tr></table>";
+
+    message += "<p>System Status</p><table>\n";
+    message += "<tr><td width=\"240\">Flash Size</td><td>";
+    message += ESP.getFlashChipRealSize();
+    message += "</td></tr>\n";
+    message += "<tr><td width=\"240\">Flash Available</td><td>";
+    message += flash;
+    message += "</td></tr>\n";
+    message += "<tr><td>RAM Left</td><td>";
+    message += String(ESP.getFreeHeap());
+    message += "</td></tr>\n";
+
     message += "</table>";
     message += "</body>";
     setNoCacheHeaders();
@@ -786,6 +845,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     webServer.on("/getparameters",  handle_getParameters);
     webServer.on("/setparameters",  handle_setParameters);
     webServer.on("/getstatus",      handle_getStatus);
+    webServer.on("/getstatus_tcp",  handle_getStatusTcp);
     webServer.on("/reboot",         handle_reboot);
     webServer.on("/setup",          handle_setup);
     webServer.on("/info.json",      handle_getJSysInfo);
