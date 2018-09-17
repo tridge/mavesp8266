@@ -33,6 +33,8 @@
  * ESP8266 Wifi AP, MavLink UART/UDP Bridge
  *
  * @author Gus Grubba <mavlink@grubba.com>
+ * TCP support by davidbuzz@gmail.com
+ * txmod/900x bootloader and flashing support by davidbuzz@gmail.com
  */
 
 
@@ -160,7 +162,7 @@ MySerial *SmartSerial = new MySerial(&Serial9x);
 File f; // global handle use for the Xmodem upload
 
 
-bool r900x_sync() { 
+bool r900x_booloader_mode_sync() { 
       // __sync
       
       //
@@ -329,9 +331,9 @@ bool r990x_saveparams() {
 
 
 
-bool r900x_autosync() { 
+bool r900x_command_mode_sync() { 
 
-    swSer.println("Trying autosync....\n");
+        swSer.println("Trying command-mode sync....\n");
     
         Serial.write("\r");
         delay(1000); 
@@ -390,13 +392,14 @@ bool r900x_autosync() {
 bool r900x_check() { 
   for (int r=0; r < 3; r++){
 
-        bool ok = r900x_sync();
-        if ( ok ) { swSer.println("got sync");  return true; }
+        // first try to communicate with the bootloader, if possible....
+        bool ok = r900x_booloader_mode_sync();
+        if ( ok ) { swSer.println("got boot-loader sync");  return true; }
 
-        ok = r900x_autosync();
+        // if that doesn't work, try to communicate with the radio firmware, and put it into bootloader mode...
+        ok = r900x_command_mode_sync();
+        if ( ok) { swSer.println("got command-mode sync");  return true; }
 
-        if ( ok) return true;
-        
   }
   return false;
 }
@@ -465,7 +468,7 @@ void r900x_setup() {
       //# TODO create/format SPIFFS filesystem and leave it empty. ?
     }
 
-swSer.flush();
+    swSer.flush();
     /* 
     Dir dir = SPIFFS.openDir(""); //read all files
     while (dir.next()) {
@@ -489,11 +492,28 @@ swSer.flush();
         return;
     }
 
+    // first try at the default baud rate...
+    bool found_bootloader = false;
+    if ( r900x_check() ) { 
+        found_bootloader = true;
+    } else {
+       swSer.println("Failed to contact bootloader at 57600");
+    }
 
-    if ( !r900x_check() ) { 
-       swSer.println("Failed to contact bootloader");
-    } else { 
+    Serial.begin(74880); // second try at the esp8266's bootloader baud rate.
+    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
+    Serial.flush();
+    if ( r900x_check() ) { 
+        found_bootloader = true;
+    } else {
+       swSer.println("Failed to contact bootloader at 74880");
+    }
+
+    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
+    Serial.flush();
+
         
+    if ( found_bootloader == true ) { 
         if (r900x_upload() ) { 
             swSer.println("renamed firmware file after successful flash.");
             SPIFFS.rename(BOOTLOADERNAME, BOOTLOADERCOMPLETE); // after a successful upload to the 900x radio, rename it out of the way.
@@ -501,6 +521,10 @@ swSer.flush();
             swSer.println("Failed to upload to 900x, will retry on next boot.");
         }
     }
+
+    Serial.begin(57600); // // get params from modem with command-mode, without talking ot the bootloader, at stock firmware baud rate.
+    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
+    Serial.flush();
     
     r990x_getparams();  
 
@@ -586,7 +610,10 @@ void setup() {
     if(!flashCorrectlyConfigured)  swSer.println("flash incorrectly configured,  cannot start, IDE size: " + ideSize + ", real size: " + realSize);
 
     swSer.println("blah3"); swSer.flush();
+
+    //try at current/stock baud rate, 57600, first.
     r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
+
 
     swSer.println("blah4"); swSer.flush();
 
