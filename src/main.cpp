@@ -162,31 +162,20 @@ MySerial *SmartSerial = new MySerial(&Serial9x);
 File f; // global handle use for the Xmodem upload
 
 
-bool r900x_booloader_mode_sync() { 
-      // __sync
-      
-      //
+int r900x_booloader_mode_sync() { 
+
       Serial.write("U"); // autobauder
       Serial.flush(); 
-      
-      //Serial.write("\rCHIPID\r");
-      //Serial.flush(); // output buffer flush
 
-     // chipid info etc
-     // swSer.println("\t\tCHIPID\r\n");
- 
-      // __getSync
-
-      bool ok = SmartSerial->expect("ChipID:",500); 
-      if ( ok ) { 
-          swSer.println("\t\tGOT ChipID Response from radio.\n");
-          //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+      int ok = SmartSerial->expect_multi3("ChipID:", "UPLOAD", "XXXXXXXXXXX",500); // we're really looking for a ChipID, but UPLOAD will do too, and XXX is an unused parameter
+      if ( ok > 0 ) { 
+          swSer.println("\t\tGOT ChipID/UPLOAD Response from radio.\n");
+          while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+          return ok;
       } else { 
-
-          swSer.println("\t\tFAILED-TO-GET ChipID Response from radio.\n");
-      }  
-      return ok;
-      
+          swSer.println("\t\tFAILED-TO-GET ChipID/UPLOAD Response from radio.\n");
+          return -1;
+      }       
 }
 
 
@@ -261,6 +250,7 @@ bool r990x_saveparams() {
     }
 
     int done = 0; 
+    int failurecount = 0;
     while ( done < 30 ) { 
 
         String line = f.readStringUntil('\n'); // read a line, wait max 100ms.
@@ -301,13 +291,14 @@ bool r990x_saveparams() {
         } else { 
             //trying = false; HACK
             swSer.println("FALED-TO-GET OK Response from radio.\n");
+            failurecount++;
+            if ( failurecount > 2 ) return false; // in the event that we don't have modem, this fails it faster
         } 
         
         done++;
     }   
 
     
-
     // jump here when done writing parms:
    save:
 
@@ -329,8 +320,7 @@ bool r990x_saveparams() {
 } 
 
 
-
-
+bool got_hex = false;
 bool r900x_command_mode_sync() { 
 
         swSer.println("Trying command-mode sync....\n");
@@ -349,11 +339,8 @@ bool r900x_command_mode_sync() {
             swSer.println("FALED-TO-GET OK Response from radio.\n");
         } 
 
-        // we try the ATI style commands upto 5 times to get a 'sync' if needed.
-        for (int i=0; i < 5; i++){
-
-           // int i=0;
-
+        // we try the ATI style commands up to 2 times to get a 'sync' if needed. ( was 5, but 2 is faster )
+        for (int i=0; i < 2; i++) {
 
             swSer.print("\tATI Attempt Number: "); swSer.println(i);
             swSer.write("\tSending ATI to radio.\r");
@@ -361,15 +348,27 @@ bool r900x_command_mode_sync() {
             Serial.write("ATI\r");
             Serial.flush(); // output buffer flush
 
-            ok = SmartSerial->expect("SiK",2000); 
-            if ( ok ) { 
+            int ok2 = SmartSerial->expect_multi3("SiK","\xC1\xE4\xE3\xF8","\xC1\xE4\xE7\xF8",2000);  // we really want to see 'Sik' here, but if we see the hex string/s we cna short-curcuit 
+
+            if ( ok2 == 1 ) { 
                 swSer.println("\tGOT SiK Response from radio.\n");
-            } else { 
+            } 
+            if ( ok2 == 2 ) { 
+                swSer.println("\tGOT bootloader HEX (C1 E4 E3 F8 ) Response from radio.\n");
+                got_hex = true;
+                return false;
+            } 
+            if ( ok2 == 3 ) { 
+                swSer.println("\tGOT bootloader HEX (C1 E4 E7 F8 ) Response from radio.\n");
+                got_hex = true;
+                return false;
+            } 
+
+            if ( ok2 == -1 ) { 
                 swSer.println("\tFAILED-TO-GET SiK Response from radio.\n");
                 continue;
             } 
 
-            //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
             while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity ( it has version info )
 
 
@@ -389,76 +388,10 @@ bool r900x_command_mode_sync() {
   return false;
 }
 
-bool r900x_check() { 
-  for (int r=0; r < 3; r++){
-
-        // first try to communicate with the bootloader, if possible....
-        bool ok = r900x_booloader_mode_sync();
-        if ( ok ) { swSer.println("got boot-loader sync");  return true; }
-
-        // if that doesn't work, try to communicate with the radio firmware, and put it into bootloader mode...
-        ok = r900x_command_mode_sync();
-        if ( ok) { swSer.println("got command-mode sync");  return true; }
-
-  }
-  return false;
-}
-
-bool r900x_upload () { 
-
-    swSer.print("--#");
-    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.
-    swSer.println("#--");
-
-    Serial.write("U"); // 57600 AUTO BAUD RATE CODE EXPECTS THIS As the first byte sent to the bootloader, not even \r or \n should be sent earlier
-    Serial.flush();
-
-    bool ok = SmartSerial->expect("ChipID:",2000);  // response to 'U' is the long string including chipid
-
-    delay(200);
-
-    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.
-
-    // UPLOAD COMMAND EXPECTS 'Ready' string
-    swSer.println("\t\tUPLOAD\r\n");
-    //
-    Serial.write("UPLOAD\r");
-    Serial.flush(); // output buffer flush
-
-    ok = SmartSerial->expect("Ready",3000); 
-    ok = SmartSerial->expect("\r\n",1000); 
-
-    if ( ok ) { 
-        swSer.println("\t\tGOT UPLOAD/Ready Response from radio.\n");
-        while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.                        
-    } else { 
-
-        swSer.println("\t\tFAILED-TO-GET UPLOAD/Ready Response from radio.\n");
-        return false;
-    } 
-
-    // TODO xmodem stuff...
-    swSer.println("bootloader handshake done");
-
-    swSer.println("\t\tXMODEM SENDFILE BEGAN\n");
-    xmodem.sendFile(f, "unused");
-    swSer.println("\t\tXMODEM SENDFILE ENDED\n");
-
-    //f.close();
-
-    swSer.println("Booting new firmware");
-
-
-    Serial.write("BOOTNEW\r");
-    swSer.println("\t\tBOOTNEW\r\n");
-
-    return true;
-}
-
 
 void r900x_setup() { 
 
-    delay(3000);  // allow time for 900x radio to complete its startup.? 
+    delay(1000);  // allow time for 900x radio to complete its startup.? 
 
     if ( SPIFFS.begin() ) { 
       swSer.println("spiffs started\n");
@@ -469,21 +402,21 @@ void r900x_setup() {
     }
 
     swSer.flush();
-    /* 
+
+    // debug only, list files and their size-on-disk
+    swSer.println("List of files in SPIFFs:");
     Dir dir = SPIFFS.openDir(""); //read all files
     while (dir.next()) {
       swSer.print(dir.fileName()); swSer.print(" -> ");
       File f = dir.openFile("r");
       swSer.println(f.size());
       f.close();
-    }*/
+    }
 
 
 #define BOOTLOADERNAME "/RFDSiK900x.bin"
 #define BOOTLOADERCOMPLETE "/RFDSiK900x.bin.ok"
 
-//#define BOOTLOADERNAME "/RFDSiK900x.bin.ok"
-//#define BOOTLOADERCOMPLETE "/RFDSiK900x.bin"
 
     f = SPIFFS.open(BOOTLOADERNAME, "r");
 
@@ -492,36 +425,143 @@ void r900x_setup() {
         return;
     }
 
+    if (( f.size() > 0) and (f.size() < 90000 )) { 
+        swSer.println("incomplete or too-small firmware for 900x to program ( < 90k bytes ), deleting corrupted file and skipping reflash.\n");
+        SPIFFS.remove(BOOTLOADERNAME); 
+        return;   
+    } 
+
+retrypoint:
+
     // first try at the default baud rate...
-    bool found_bootloader = false;
-    if ( r900x_check() ) { 
-        found_bootloader = true;
-    } else {
-       swSer.println("Failed to contact bootloader at 57600");
-    }
+    int result = -1; // returns 1,2,3,4 or 5 on some sort of success
 
-    Serial.begin(74880); // second try at the esp8266's bootloader baud rate.
-    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
-    Serial.flush();
-    if ( r900x_check() ) { 
-        found_bootloader = true;
-    } else {
-       swSer.println("Failed to contact bootloader at 74880");
-    }
+    for (int r=0; r < 3; r++){
+        swSer.println("Serial.begin(57600);");
+        Serial.begin(57600);
+        // first try to communicate with the bootloader, if possible....
+        int ok = r900x_booloader_mode_sync();
+        if ( ok == 1 ) { swSer.println("got boot-loader sync(ChipID)");  result= 1; break; }
+        if ( ok == 2 ) { swSer.println("got boot-loader sync(UPLOAD)");  result= 2; break;}
 
-    while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
-    Serial.flush();
+        // also try to communicate with the bootloader, if possible....
+        swSer.println("Serial.begin(74880);");
+        Serial.begin(74880);
+        ok = r900x_booloader_mode_sync();
+        if ( ok == 1 ) { swSer.println("got boot-loader sync(ChipID) at 74880");  result= 3; break; }
+        if ( ok == 2 ) { swSer.println("got boot-loader sync(UPLOAD) at 74880");  result= 4; break;}   
 
-        
-    if ( found_bootloader == true ) { 
-        if (r900x_upload() ) { 
-            swSer.println("renamed firmware file after successful flash.");
-            SPIFFS.rename(BOOTLOADERNAME, BOOTLOADERCOMPLETE); // after a successful upload to the 900x radio, rename it out of the way.
-        } else { 
-            swSer.println("Failed to upload to 900x, will retry on next boot.");
+        if ( got_hex == false ) { // hack buzz temp disable, r-enable me.
+            swSer.println("Serial.begin(57600);");
+            Serial.begin(57600);
+            // if that doesn't work, try to communicate with the radio firmware, and put it into AT mode...
+            ok = r900x_command_mode_sync();
+            if ( ok) { swSer.println("got command-mode sync");  result= 9; break; }
+            if ( got_hex == true ) { result = 3; break;  } // grappy way to throwing hands in air and trying bootloader
         }
+
+    } 
+
+           
+    // result= -1 might mean our modem was maybe  already stuck in bootloader mode to start with.., we can try to recover that too... 
+
+    swSer.print("result:"); swSer.println(result);
+    
+        
+    if ( true ) { 
+        
+        if (( result == 1 ) or ( result == 2 ) ){Serial.begin(57600); swSer.print("r900x_upload attempt.... AT 57600\n--#"); }
+        if (( result == 3 ) or ( result == 4 ) ) { Serial.begin(74880); swSer.print("r900x_upload attempt.... AT 74880\n--#"); }
+        if (( result == 5 ) or ( result == 6 ) ) { Serial.begin(115200); swSer.print("r900x_upload attempt.... AT 115200\n--#"); }
+        if (( result == 7 ) or ( result == 8 ) ) { Serial.begin(19200); swSer.print("r900x_upload attempt.... AT 19200\n--#"); }
+
+        delay(200);
+
+        //swSer.print("r900x_upload anyway attempt....\n--#");
+        while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.
+        swSer.println("#--");
+
+
+        // if we already saw ChipID or UPLOAD output, don't try to do 
+        if ( result == 9 ) {
+            Serial.write("U"); // 57600 AUTO BAUD RATE CODE EXPECTS THIS As the first byte sent to the bootloader, not even \r or \n should be sent earlier
+            Serial.flush();
+
+            bool ok = SmartSerial->expect("ChipID:",2000);  // response to 'U' is the long string including chipid
+
+            delay(200);
+
+            while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.
+
+        }
+
+        // UPLOAD COMMAND EXPECTS 'Ready' string
+        swSer.println("\t\tsending 'UPLOAD'\r\n");
+        //
+        Serial.write("UPLOAD\r");
+        Serial.flush(); // output buffer flush
+
+        int ok2 = SmartSerial->expect("Ready",3000);  // we really MUST see Ready here
+
+
+        //if ( ok2 == 2 ) {  bool ok = SmartSerial->expect("Ready",1000);  }
+
+        bool ok = SmartSerial->expect("\r\n",1000); 
+
+        int xok = -1; // xmodem programming return status later on decides if we really, finally, succeeded in flashing
+        if ( ok ) { 
+            swSer.println("\t\tGOT UPLOAD/Ready Response from radio.\n");
+            while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.   
+
+            //  xmodem stuff...
+            swSer.println("bootloader handshake done");
+
+            swSer.println("\t\tXMODEM SENDFILE BEGAN\n");
+            xok = xmodem.sendFile(f, "unused");
+            swSer.println("\t\tXMODEM SENDFILE ENDED\n");
+
+            //f.close();
+
+            swSer.println("Booting new firmware");
+
+            Serial.write("BOOTNEW\r");
+            Serial.flush();
+            swSer.println("\t\tBOOTNEW\r\n");
+
+            if (xok == -1 ) {  // sendfile failed, after a BOOTNEW causes the modm to power cycle, lets retry at 57600
+                
+                //Serial.begin(57600); or Serial.begin(74880); ? 
+                goto retrypoint; // sorry.
+                
+            } 
+            if ( xok == 1 ) { // flash succeeded, really, truly.
+
+               swSer.println("renamed firmware file after successful flash ( file ends in .ok now)");
+               SPIFFS.remove(BOOTLOADERCOMPLETE); // cleanup incase an old one is still there. 
+               SPIFFS.rename(BOOTLOADERNAME, BOOTLOADERCOMPLETE); // after a successful upload to the 900x radio, rename it out of the 
+            
+            }
+                     
+        } else { 
+
+            swSer.println("\t\tFAILED-TO-GET UPLOAD/Ready Response from radio.\n");
+            //return false;
+            //result = 6; 
+
+            Serial.write("BOOTNEW\r");
+            Serial.flush();
+            delay(200);
+            swSer.println("\t\tBOOTNEW to powercycle and rety.\r\n");
+            while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point.   
+
+            goto retrypoint; // sorry.
+
+        } 
+
     }
 
+
+    swSer.println("Serial.begin(57600);");
     Serial.begin(57600); // // get params from modem with command-mode, without talking ot the bootloader, at stock firmware baud rate.
     while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
     Serial.flush();
