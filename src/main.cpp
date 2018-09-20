@@ -533,9 +533,7 @@ void r900x_setup() {
 
 } 
 
-
 #define PROTOCOL_TCP
-
 
 #ifdef PROTOCOL_TCP
 #include <WiFiClient.h>
@@ -584,7 +582,7 @@ void setup() {
 
    SmartSerial->begin();
 
-    swSer.println("blah1"); swSer.flush();
+    swSer.println("doing setup()"); swSer.flush();
 
 #ifdef ENABLE_DEBUG
     //   We only use it for non debug because GPIO02 is used as a serial
@@ -597,10 +595,7 @@ void setup() {
     attachInterrupt(GPIO02, reset_interrupt, FALLING);
 #endif
 
-    swSer.println("blah2"); swSer.flush();
-
     Logger.begin(2048);
-
     SoftLogger.begin(2048);
 
     // make sure programmed with correct spiffs settings.
@@ -609,20 +604,16 @@ void setup() {
     bool flashCorrectlyConfigured = realSize.equals(ideSize);
     if(!flashCorrectlyConfigured)  swSer.println("flash incorrectly configured,  cannot start, IDE size: " + ideSize + ", real size: " + realSize);
 
-    swSer.println("blah3"); swSer.flush();
 
     //try at current/stock baud rate, 57600, first.
     r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
 
-
-    swSer.println("blah4"); swSer.flush();
 
     DEBUG_LOG("\nConfiguring access point...\n");
     DEBUG_LOG("Free Sketch Space: %u\n", ESP.getFreeSketchSpace());
 
     WiFi.disconnect(true);
 
-    swSer.println("blah5"); swSer.flush();
 
     if(Parameters.getWifiMode() == WIFI_MODE_STA){
         DEBUG_LOG("\nEntering station mode...\n");
@@ -657,7 +648,7 @@ void setup() {
         localIP = WiFi.softAPIP();
         //wait_for_client();
     }
-swSer.println("blah6");
+
     //-- Boost power to Max
     WiFi.setOutputPower(20.5);
     //-- MDNS
@@ -666,7 +657,7 @@ swSer.println("blah6");
     MDNS.begin(mdsnName);
     MDNS.addService("http", "tcp", 80);
 
-swSer.println("blah7");
+
     #ifdef PROTOCOL_TCP
     swSer.println("Starting TCP Server on port 23");
     tcpserver.begin(); // start TCP server 
@@ -677,17 +668,10 @@ swSer.println("blah7");
     DEBUG_LOG("Local IP: %s\n", localIP.toString().c_str());
 
     Parameters.setLocalIPAddress(localIP);
-    //IPAddress gcs_ip(localIP);
-    //-- I'm getting bogus IP from the DHCP server. Broadcasting for now.
-    //gcs_ip[3] = 255;
-swSer.println("blah8");
-    
-    //GCS.begin(&Vehicle, gcs_ip);
-    //Vehicle.begin(&GCS);
 
     //-- Initialize Update Server
     updateServer.begin(&updateStatus); //TODO unf88k this.
-swSer.println("setup complete");
+swSer.println("setup() complete");
 }
 
 
@@ -762,7 +746,7 @@ void handle_tcp_and_serial_passthrough() {
 
       if(tcpclient.available()) {
         while(tcpclient.available()) {
-          buf1[i1] = (uint8_t)tcpclient.read(); // read char from client (RoboRemo app)
+          buf1[i1] = (uint8_t)tcpclient.read(); // read char from client 
           stats_tcp_in++;
           if(i1<bufferSize-1) i1++;
           if ( i1 >= max_tcp_size ) { // don't exceed max tcp size, even if incoming data is continuous.
@@ -811,19 +795,17 @@ void handle_tcp_and_serial_passthrough() {
 //-- Main Loop
 void loop() {
 
-//swSer.println("loop");
     client_check(); 
 
-//swSer.println("loop2");
     if (tcp_check() ) {  // if a client connects to the tcp server, stop doing everything else and handle that
         if ( tcp_passthrumode == false ) {tcp_passthrumode = true;
         swSer.println("entered tcp-serial passthrough mode"); }
         handle_tcp_and_serial_passthrough();
-//swSer.println("loop3");
+
     } else { // do udp & mavlink comms by default and when no tcp clients are available
 
         if ( tcp_passthrumode == true ) { tcp_passthrumode = false; swSer.println("exited tcp-serial passthrough mode"); }
-//swSer.println("loop4");
+
         if(!updateStatus.isUpdating()) {
             if (Component.inRawMode()) {
                 GCS.readMessageRaw();
@@ -836,7 +818,7 @@ void loop() {
                 Vehicle.readMessage();
             }
         }
-//swSer.println("loop5");
+
     }
     updateServer.checkUpdates();
 }
