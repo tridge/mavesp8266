@@ -38,7 +38,7 @@ class XModem
 {
   public:
     XModem(Stream *port, char mode);
-    void sendFile(File dataFile, char *fileName);
+    int sendFile(File dataFile, char *fileName);
   private:
     Stream *port;
     unsigned char packetNo, checksumBuf;

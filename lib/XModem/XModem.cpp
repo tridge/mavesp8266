@@ -130,7 +130,7 @@ char XModem::waitACK(void)
 }
 
 
-void XModem::sendFile(File dataFile, char *fileName)
+int XModem::sendFile(File dataFile, char *fileName)
 {
 
 swSer.println("sendFile....." ); 
@@ -257,10 +257,11 @@ swSer.println("sendFile....." );
 
   // When we get here everything was successful.
   digitalWrite(LED,LOW);  // leave  LED ON at end of upload if successful
-  return;
+  return 1;
 err:
   //port->println("Error sending...");
   swSer.println("Error sending...?");
   digitalWrite(LED,HIGH);  // leave  LED OFF at end of upload if failed
+  return -1;
 
 }
