@@ -1,0 +1,59 @@
+<!doctype html><html><head><title>MavLink Bridge</title>
+<script>
+
+function ValidateFirst(oInput) {
+    if (oInput.type == "file") {
+        var sFileName = oInput.files[0].name;
+         if (sFileName.length > 0) {
+           if (sFileName != "RFDSiK900x.bin" ) { 
+                alert("Sorry, " + sFileName + " is invalid, must use exact file name: RFDSiK900x.bin"); 
+                oInput.files[0].name = "";
+                oInput.value = "";
+                return false;} 
+         }
+    }
+    return true;
+}
+function ValidateSecond(oInput) {
+    if (oInput.type == "file") {
+        var sFileName = oInput.files[0].name;
+         if (sFileName.length > 0) {
+           if (sFileName != "firmware.bin" ) { 
+                alert("Sorry, " + sFileName + " is invalid, must use exact file name: firmware.bin"); 
+                oInput.files[0].name == "";
+                oInput.value = "";
+                return false;} 
+         }
+    }
+    return true;
+}
+function Validate1(oInput){
+   fname = document.getElementById("one").value;
+    if (fname.length == 0) {
+            alert("You have to Choose a file first."); return false;
+    }
+}
+function Validate2(oInput){
+   fname = document.getElementById("two").value;
+    if (fname.length == 0) {
+            alert("You have to Choose a file first."); return false;
+    }
+}
+</script>
+</head>
+<body>
+<h1><a href='/'>MAVLink WiFi Bridge</a></h1>
+Your Module has TWO microcontrollers in it!<br>
+Please upload a file called 'firmware.bin' for the esp8266 module here: 
+<form method='POST' action='/upload' enctype='multipart/form-data' onsubmit="return Validate2(this);">
+<input type='file' name='update' id=two onchange="ValidateSecond(this);"><br>
+<input type='submit' value='Update & Reboot'>
+</form><br>
+Please upload a file called 'RFDSiK900x.bin' for the RFD900x modem here: 
+<form method='POST' action='/edit' enctype='multipart/form-data' onsubmit="return Validate1(this);">
+<input type='file' name='update' id=one onchange="ValidateFirst(this);"><br>
+<input type='submit' value='Update & Reboot'>
+</form><br> 
+( Please only do one of these at a time)
+</body>
+</html>
