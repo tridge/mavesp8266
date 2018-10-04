@@ -44,6 +44,8 @@
 #include <ESP8266WebServer.h>
 #include <FS.h> // spiffs support
 
+#include <ESP8266mDNS.h>
+#include <ESP8266HTTPUpdateServer.h>
 
 #include <SoftwareSerial.h>
 extern SoftwareSerial swSer;
@@ -97,6 +99,10 @@ static char paramCRC[12] = {""};
 ESP8266WebServer    webServer(80);
 MavESP8266Update*   updateCB    = NULL;
 bool                started     = false;
+
+
+ESP8266HTTPUpdateServer httpUpdater;
+
 
 //holds the current upload, if there is one, except OTA binary uploads, done elsewhere.
 File fsUploadFile;
@@ -263,7 +269,7 @@ static void handle_root()
     message += "<li><a href='/plist'>Edit 900x Radio Parameters</a>\n";
 
   //  message += "<li><a href='/save900xparams'>Activate 900x params after editing.(be sure radio is *not* connected to a vehicle or remove device when you press this)</a>\n";
-    message += "<li><a href='/update'>Update Firmware</a>\n";
+    message += "<li><a href='/updatepage'>Update Firmware</a>\n";
     message += "<li><a href='/reboot'>Reboot</a>\n";
     message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
     message += "</ul>\n";
@@ -292,12 +298,16 @@ static void handle_update_html()
     File f = SPIFFS.open("/update.htm", "r");
     if ( f ) { 
             message += f.readString();
-    } else {  // in the event that update.htm is missing, give enough so we can at least upload one!.
-        message += "Please upload anything you like to SPIFFS here ( that will fit ): \n";
-        message += "<form method='POST' action='/edit' enctype='multipart/form-data' >\n";
-        message += "<input type='file' name='update' id=three ><br>\n";
-        message += "<input type='submit' value='Upload'>\n";
-        message += "</form><br> </body></html>\n";
+    } else {  // in the event that update.htm is missing, give enough so we can upload a spiffs.bin and make one:
+
+        message +=  FPSTR(kHEADER);
+        message += "Please upload a spiffs.bin to continue: \n";
+        message += "<form method='POST' action='/update' enctype='multipart/form-data'>\n";
+        message += "Spiffs:<br>\n";
+        message += "<input type='file' name='spiffs'>\n";
+        message += "<input type='submit' value='Update SPIFFS'>\n";
+        message += "</form>\n";
+
     }
     setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
@@ -1035,7 +1045,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     webServer.on("/status.json",    handle_getJSysStatus);
     webServer.on("/log.json",       handle_getJLog);
 
-    webServer.on("/update",       handle_update_html); // presents a webpage that then might upload a binary to the /upload endpoint via POST
+    webServer.on("/updatepage",       handle_update_html); // presents a webpage that then might upload a binary to the /upload endpoint via POST
 
     webServer.on("/save900xparams",         save900xparams);
 
@@ -1088,7 +1098,16 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     }
     });
 
+    const char* webupdatehost = "esp8266-webupdate";
+
+    MDNS.begin(webupdatehost);
+
+    httpUpdater.setup(&webServer);
+
     webServer.begin();
+
+    MDNS.addService("http", "tcp", 80);
+    DBG_OUTPUT_PORT.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", webupdatehost);
 }
 
 //---------------------------------------------------------------------------------
