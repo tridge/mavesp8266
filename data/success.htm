@@ -2,14 +2,45 @@
 <script>
 
 var timeleft = 60;
+var cameback = false;
+
 function starttimer() {
-var downloadTimer = setInterval(function(){
-  document.getElementById("progressBar").value = 60 - --timeleft;
-  if(timeleft <= 0)
-    clearInterval(downloadTimer);
-    //document.getElementById("doit").innerHTML = "<a href=/>Device should have rebooted now.. click here to continue.</a>";
-},1000);
+    var downloadTimer = setInterval(function(){
+      document.getElementById("progressBar").value = 60 - --timeleft;
+      if  ( cameback == true ) { 
+         document.getElementById("doit").innerHTML = "Device Has Finished Rebooting"; 
+      } 
+      if (( cameback == false ) && ( checkforserverback() )) { 
+      }
+      if(timeleft <= 0)
+        clearInterval(downloadTimer);
+        //document.getElementById("doit").innerHTML = "<a href=/>Device should have rebooted now.. click here to continue.</a>";
+    },3000);
 }
+
+
+function checkforserverback() { 
+
+  var xhttp = new XMLHttpRequest();
+  var mytimeout = false;
+  xhttp.timeout = 2500; // 4 secs
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      //document.getElementById("doit").innerHTML = "Device Rebooting Now!";
+      //this.responseText;
+      //alert("connected!");
+       cameback = true;
+      return true;
+    }
+  };
+  xhttp.ontimeout = function(e) { mytimeout = true}; 
+  xhttp.open("GET", "/", true); 
+  xhttp.send();
+
+  if ( mytimeout == true ) return false;
+
+return false;
+} 
 
 function loadDoc() {
   timeleft = 60;
