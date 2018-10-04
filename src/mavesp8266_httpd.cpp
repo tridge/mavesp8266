@@ -1098,16 +1098,16 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     }
     });
 
-    const char* webupdatehost = "esp8266-webupdate";
+    //const char* webupdatehost = "esp8266-webupdate";
 
-    MDNS.begin(webupdatehost);
+    //MDNS.begin(webupdatehost);
 
     httpUpdater.setup(&webServer);
 
     webServer.begin();
 
-    MDNS.addService("http", "tcp", 80);
-    DBG_OUTPUT_PORT.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", webupdatehost);
+    //MDNS.addService("http", "tcp", 80);
+    //DBG_OUTPUT_PORT.printf("HTTPUpdateServer ready! Open http://%s.local/update in your browser\n", webupdatehost);
 }
 
 //---------------------------------------------------------------------------------

@@ -710,6 +710,7 @@ void setup() {
 
     //-- Boost power to Max
     WiFi.setOutputPower(20.5);
+
     //-- MDNS
     char mdsnName[256];
     sprintf(mdsnName, "MavEsp8266-%d",localIP[3]);
