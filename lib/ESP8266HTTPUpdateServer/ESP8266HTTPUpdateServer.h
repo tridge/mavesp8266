@@ -4,6 +4,8 @@
 // taken from here and modified by buzz to add spiffs upload
 // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266HTTPUpdateServer/src/ESP8266HTTPUpdateServer.h
 
+// see also https://www.esp8266.com/viewtopic.php?f=33&t=11118
+// see also https://github.com/esp8266/Arduino/pull/3234/commits/b08d896a6c8eb01c8b206df9c490f7f0ca6ce5ac
 
 class ESP8266WebServer;
 
