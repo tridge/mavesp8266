@@ -55,7 +55,7 @@ const char PROGMEM kTEXTHTML[]   = "text/html";
 const char PROGMEM kACCESSCTL[]  = "Access-Control-Allow-Origin";
 
 const char PROGMEM kUPLOADFORM[] = "";
-const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>MavLink Bridge</title></head><body><h1><a href='/'>MAVLink WiFi Bridge</a></h1>";
+const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>RFDesign TXMOD</title></head><body><h1><a href='/'>RFDesign TXMOD</a></h1>";
 const char PROGMEM kBADARG[]     = "BAD ARGS";
 const char PROGMEM kAPPJSON[]    = "application/json";
 
