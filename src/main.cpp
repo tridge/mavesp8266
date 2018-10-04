@@ -93,7 +93,8 @@ private:
 //-- Singletons
 IPAddress               localIP;
 MavESP8266Component     Component;
-MavESP8266Parameters    Parameters;
+MavESP8266Parameters    Parameters; // esp params
+
 MavESP8266GCS           GCS;
 MavESP8266Vehicle       Vehicle;
 MavESP8266Httpd         updateServer;
@@ -181,18 +182,23 @@ int r900x_booloader_mode_sync() {
 
 bool r990x_getparams() { 
 
+   int chances = 0;
+   retry:
         Serial.write("\r");
         delay(1000); 
         Serial.write("+++");
         Serial.flush(); // output buffer flush
-
         bool ok = SmartSerial->expect("OK",2000); 
         if ( ok ) { 
             swSer.println("GOT OK Response from radio.\n");
             while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
         } else { 
             //trying = false; HACK
-            swSer.println("FALED-TO-GET OK Response from radio.\n");
+            swSer.print("FALED-TO-GET OK Response from radio. chance:");
+            swSer.println(chances);
+            // lets give it two chances, then give up, not just one. 
+            chances++;
+            if (chances < 2 ) goto retry;
             return false;
         } 
 
@@ -398,8 +404,18 @@ void r900x_setup() {
     } else { 
       swSer.println("spiffs FAILED to start\n");
 
-      //# TODO create/format SPIFFS filesystem and leave it empty. ?
     }
+
+  //Format File System if it doesn't at least have an index.htm file on it.
+  if (!SPIFFS.exists("/index.htm")) {
+    swSer.println("SPIFFS File System Format started....");
+    SPIFFS.format();
+    swSer.println("...SPIFFS File System Format Done.");
+  }
+  else
+  {
+    swSer.println("SPIFFS File System left as-is.");
+  }
 
     swSer.flush();
 
@@ -422,6 +438,10 @@ void r900x_setup() {
 
     if ( ! f ) {  // did we open this file ok, ie does it exist? 
         swSer.println("no firmware to program, skipping reflash.\n");
+
+        // in the even we aren't reflashing, but have no parameters cached from the modem do that now
+        File p = SPIFFS.open("/r900x_params.txt", "r"); 
+        if ( ! p ) { r990x_getparams(); }
         return;
     }
 
@@ -488,6 +508,9 @@ retrypoint:
             Serial.flush();
 
             bool ok = SmartSerial->expect("ChipID:",2000);  // response to 'U' is the long string including chipid
+            // todo handle this return value. 
+            //for now just to stop compilter warning:
+            ok = !ok;
 
             delay(200);
 
@@ -501,12 +524,9 @@ retrypoint:
         Serial.write("UPLOAD\r");
         Serial.flush(); // output buffer flush
 
-        int ok2 = SmartSerial->expect("Ready",3000);  // we really MUST see Ready here
+        bool ok = SmartSerial->expect("Ready",3000);  // we really MUST see Ready here
 
-
-        //if ( ok2 == 2 ) {  bool ok = SmartSerial->expect("Ready",1000);  }
-
-        bool ok = SmartSerial->expect("\r\n",1000); 
+        ok = SmartSerial->expect("\r\n",1000);  // and then some \r\n precisely.
 
         int xok = -1; // xmodem programming return status later on decides if we really, finally, succeeded in flashing
         if ( ok ) { 
@@ -517,7 +537,7 @@ retrypoint:
             swSer.println("bootloader handshake done");
 
             swSer.println("\t\tXMODEM SENDFILE BEGAN\n");
-            xok = xmodem.sendFile(f, "unused");
+            xok = xmodem.sendFile(f, (char *)"unused");
             swSer.println("\t\tXMODEM SENDFILE ENDED\n");
 
             //f.close();
@@ -567,6 +587,7 @@ retrypoint:
     Serial.flush();
     
     r990x_getparams();  
+
 
     f.close();
 
@@ -645,8 +666,6 @@ void setup() {
     if(!flashCorrectlyConfigured)  swSer.println("flash incorrectly configured,  cannot start, IDE size: " + ideSize + ", real size: " + realSize);
 
 
-    //try at current/stock baud rate, 57600, first.
-    r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
 
 
     DEBUG_LOG("\nConfiguring access point...\n");
@@ -711,6 +730,14 @@ void setup() {
 
     //-- Initialize Update Server
     updateServer.begin(&updateStatus); //TODO unf88k this.
+
+
+
+    //try at current/stock baud rate, 57600, first.
+    r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
+
+
+
 swSer.println("setup() complete");
 }
 

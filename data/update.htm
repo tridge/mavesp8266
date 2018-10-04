@@ -39,6 +39,12 @@ function Validate2(oInput){
             alert("You have to Choose a file first."); return false;
     }
 }
+function Validate3(oInput){
+   fname = document.getElementById("three").value;
+    if (fname.length == 0) {
+            alert("You have to Choose a file first."); return false;
+    }
+}
 </script>
 </head>
 <body>
@@ -54,6 +60,14 @@ Please upload a file called 'RFDSiK900x.bin' for the RFD900x modem here:
 <input type='file' name='update' id=one onchange="ValidateFirst(this);"><br>
 <input type='submit' value='Update & Reboot'>
 </form><br> 
+
+Please upload anything you like to SPIFFS here ( that will fit ): 
+<form method='POST' action='/edit' enctype='multipart/form-data' onsubmit="return Validate3(this);">
+<input type='file' name='update' id=three ><br>
+<input type='submit' value='Upload'>
+</form><br> 
+
 ( Please only do one of these at a time)
+
 </body>
 </html>

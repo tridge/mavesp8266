@@ -1,0 +1,43 @@
+<html>
+<head>
+<script>
+function saveform() {
+
+  var xhttp = new XMLHttpRequest();
+
+  document.getElementById("sub").value = "Processing, Please Wait...";
+
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("sub").value = "Params Saved.";
+    }
+    if (this.readyState == 4 && this.status == 201) {
+      document.getElementById("sub").value = "Params Saved and Activated.";
+    }
+    if (this.readyState == 4 && this.status == 202) {
+      ddocument.getElementById("sub").value = "Params Saved but not Activated, your modem might not be configured as-expected";
+    }
+
+  };
+  var url = "/psave"; 
+  var pl = "";
+//TAG1
+  xhttp.open("PUT", url, true);
+  xhttp.send(pl); 
+
+}
+
+function gv(id) { 
+return document.getElementById(id).value; 
+}
+</script>
+</head>
+<body>
+
+<table>
+<!--TAG2-->
+</table>
+<input type='submit' id='sub' value='Save Params' onclick="saveform(); return false;" ><div id=doit></div><br>
+</body>
+</html>
+
