@@ -57,9 +57,11 @@ SoftwareSerial swSer(14, 16, false, 256);
 
 #include "SmartSerial.h"
 
-// LED is on GPIO2
-#define GPIO02  2
-#define LED 2
+// LED is on GPIO2, see also XModem.cpp, line 125
+//#define GPIO02  2
+#define LEDGPIO 2
+// txmod reset button 
+#define RESETGPIO 12
 
 
 //---------------------------------------------------------------------------------
@@ -123,10 +125,13 @@ MavESP8266World* getWorld()
 
 uint8 client_count = 0;
 
+// global for LED state.
+bool LEDState = 0;
 
 //---------------------------------------------------------------------------------
 //-- Wait for a DHCPD client
 void wait_for_client() {
+    LEDState = 1;
     DEBUG_LOG("Waiting for a client...\n");
 #ifdef ENABLE_DEBUG
     int wcount = 0;
@@ -141,19 +146,36 @@ void wait_for_client() {
         }
 #endif
         delay(1000);
+        LEDState = !LEDState;
+        digitalWrite(LEDGPIO,LEDState);
         client_count = wifi_softap_get_station_num();
     }
     DEBUG_LOG("Got %d client(s)\n", client_count);
+    LEDState = 0;
+    digitalWrite(LEDGPIO,LEDState);
 }
 
 //---------------------------------------------------------------------------------
 //-- Reset all parameters whenever the reset gpio pin is active
 void reset_interrupt(){
+    swSer.println("FACTORY RESET BUTTON PRESSED - wifi params defaulted!\n");
+    swSer.flush();
+    LEDState = 1;
+    digitalWrite(LEDGPIO,LEDState);
     Parameters.resetToDefaults();
     Parameters.saveAllToEeprom();
     ESP.reset();
 }
 
+// count the number of user presses, and when it exceeds 5, reset to defaults.
+volatile byte interruptCounter = 0;
+volatile long first_press = 0;
+void count_interrupts() { 
+    interruptCounter++;
+    if ( first_press == 0 ) { first_press = millis(); } 
+    if ( millis() - first_press > 5000) { first_press = 0; interruptCounter = 0; } 
+    if ( interruptCounter >= 5 ) { reset_interrupt(); }// reboot after 5 presses
+} 
 
 XModem xmodem(&Serial, ModeXModem);
 
@@ -188,6 +210,8 @@ bool r990x_getparams() {
         delay(1000); 
         Serial.write("+++");
         Serial.flush(); // output buffer flush
+        LEDState = !LEDState;
+        digitalWrite(LEDGPIO,LEDState);
         bool ok = SmartSerial->expect("OK",2000); 
         if ( ok ) { 
             swSer.println("GOT OK Response from radio.\n");
@@ -259,6 +283,9 @@ bool r990x_saveparams() {
     int failurecount = 0;
     while ( done < 30 ) { 
 
+        LEDState = !LEDState;
+        digitalWrite(LEDGPIO,LEDState);
+
         String line = f.readStringUntil('\n'); // read a line, wait max 100ms.
 
         if (line.substring(0,3) == "ATI" ) { continue; } // ignore this first line.
@@ -312,6 +339,8 @@ bool r990x_saveparams() {
     Serial.write("AT&W\r\nAT&Z\r\n");
     Serial.flush(); // output buffer flush
 
+    LEDState = 0;
+    digitalWrite(LEDGPIO,LEDState);
 
     ok = SmartSerial->expect("OK",2000); 
     if ( ok ) { 
@@ -347,6 +376,9 @@ bool r900x_command_mode_sync() {
 
         // we try the ATI style commands up to 2 times to get a 'sync' if needed. ( was 5, but 2 is faster )
         for (int i=0; i < 2; i++) {
+
+            LEDState = !LEDState;
+            digitalWrite(LEDGPIO,LEDState);
 
             swSer.print("\tATI Attempt Number: "); swSer.println(i);
             swSer.write("\tSending ATI to radio.\r");
@@ -398,6 +430,10 @@ bool r900x_command_mode_sync() {
 void r900x_setup() { 
 
     delay(1000);  // allow time for 900x radio to complete its startup.? 
+
+
+    LEDState = 0;
+    digitalWrite(LEDGPIO,LEDState);
 
     if ( SPIFFS.begin() ) { 
       swSer.println("spiffs started\n");
@@ -457,6 +493,10 @@ retrypoint:
     int result = -1; // returns 1,2,3,4 or 5 on some sort of success
 
     for (int r=0; r < 3; r++){
+
+        LEDState = !LEDState;
+        digitalWrite(LEDGPIO,LEDState);
+
         swSer.println("Serial.begin(57600);");
         Serial.begin(57600);
         // first try to communicate with the bootloader, if possible....
@@ -630,6 +670,7 @@ bool tcp_passthrumode = false;
 //---------------------------------------------------------------------------------
 //-- Set things up
 void setup() {
+//    bool LEDState;
     delay(1000);
     Parameters.begin();
 
@@ -652,8 +693,16 @@ void setup() {
     swSer.println("Serial1 output for DEBUG");
 #else
     //-- Initialized GPIO02 (Used for "Reset To Factory")
-    pinMode(GPIO02, INPUT_PULLUP);
-    attachInterrupt(GPIO02, reset_interrupt, FALLING);
+    //pinMode(GPIO02, INPUT_PULLUP);
+    //attachInterrupt(GPIO02, count_interrupts, FALLING);
+
+    pinMode(LEDGPIO, OUTPUT); 
+    LEDState = 1; 
+    digitalWrite(LEDGPIO,LEDState); 
+    //-- Initialized RESETGPIO (Used for "Reset To Factory") 
+    pinMode(RESETGPIO, INPUT_PULLUP); 
+    attachInterrupt(RESETGPIO, count_interrupts, FALLING); 
+
 #endif
 
     Logger.begin(2048);
@@ -687,12 +736,18 @@ void setup() {
             Serial.print(".");
             #endif
             delay(500);
+            LEDState = !LEDState;
+            digitalWrite(LEDGPIO,LEDState);
         }
         if(WiFi.status() == WL_CONNECTED) {
             localIP = WiFi.localIP();
+            LEDState = 0;
+            digitalWrite(LEDGPIO,LEDState);
             WiFi.setAutoReconnect(true);
         } else {
             //-- Fall back to AP mode if no connection could be established
+            LEDState = 1;
+            digitalWrite(LEDGPIO,LEDState);
             WiFi.disconnect(true);
             Parameters.setWifiMode(WIFI_MODE_AP);
         }
@@ -732,8 +787,6 @@ void setup() {
     //-- Initialize Update Server
     updateServer.begin(&updateStatus); //TODO unf88k this.
 
-
-
     //try at current/stock baud rate, 57600, first.
     r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
 
@@ -758,6 +811,13 @@ void client_check() {
             //-- I'm getting bogus IP from the DHCP server. Broadcasting for now.
             gcs_ip[3] = 255;
             swSer.println("setting UDP client IP!"); 
+
+            // twiddle LEDs here so user sees they are connected
+            for ( int l = 0 ; l < 10; l++ ) { 
+                LEDState = !LEDState;
+                digitalWrite(LEDGPIO,LEDState);
+                delay(100);
+            }
             
             GCS.begin(&Vehicle, gcs_ip);
             swSer.println("GCS.begin finished"); 
@@ -861,6 +921,7 @@ void handle_tcp_and_serial_passthrough() {
 }
 //---------------------------------------------------------------------------------
 //-- Main Loop
+
 void loop() {
 
     client_check(); 
@@ -884,6 +945,8 @@ void loop() {
                 GCS.readMessage();
                 delay(0);
                 Vehicle.readMessage();
+                LEDState = !LEDState;
+                digitalWrite(LEDGPIO,LEDState);
             }
         }
 
