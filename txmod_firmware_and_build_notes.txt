@@ -1,0 +1,31 @@
+rfdesign txmod notes by buzz - Oct 4 2018
+
+source code currently found here: https://github.com/RFDesign/mavesp8266/tree/txmod
+
+cd mavesp8266
+platformio run
+platformio run -t upload --upload-port /dev/ttyUSB1
+ platformio run -t uploadfs --upload-port /dev/ttyUSB1
+
+( these commands will upload via a serial port, if the device is wired up as per the modified FTDI cable, and the programming jumper/s are set right )
+They will also create a 'firmware.bin' and 'spiffs.bin' in the mavesp8266/.pioenvs/esp12e/ folder that can be web-uploaded in many cases.
+
+If you have an existing firmware in the device, you can also upload via the web interface at http://192.168.4.1/ 
+you need to upload :
+firmware.bin  ( main firmware, minimal web pages, upload this first, then use it's web-interface to upload the spiffs.bin)
+spiffs.bin   ( more detailed upload and success web pages and advanced mode page )
+RFDSiK900x.bin ( standard 900x radio firmware )
+
+
+LED indications: 
+LED turns on/off slowly/sporadically a couple of times during a normal boot as it communicates with the 900x in AT mode etc. 
+LED turns off while rebooting.
+LED flashes a few times ( 4 or 5) quickly when a user/s laptop connects via WiFi, showing the wifi laptop-to-txmod connection is ok.
+LED flashes rappidly for about 20 seconds while the 900x modem is in bootloader mode and being reflashed.
+LED slow on/off at approx 2hz means its trying to put 900x into bootloader mode and failing to communicate with radio , check wiring to 900x, and retry/reboot.
+during normal UDP operations, LEDs flickers/pulses as UDP data goes through it.  ( does not do this in TCP mode, LED stays on solid ).
+
+Factory Reset:
+Press&Release the button on the TXMOD 5 times within 5 seconds, and it will reboot and all the wifi settings will be factory-defaulted back to their original values.
+
+
