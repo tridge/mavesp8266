@@ -226,7 +226,7 @@ bool r990x_getparams() {
             return false;
         } 
 
-        //  read params from radio , and write to a file in spiffs.
+        //  read AT params from radio , and write to a file in spiffs.
         Serial.write("ATI5\r");
         Serial.flush(); // output buffer flush
         swSer.print("----------------------------------------------");
@@ -239,6 +239,23 @@ bool r990x_getparams() {
         f = SPIFFS.open("/r990x_params.txt", "w");
         f.print(data);
         f.close();
+
+        delay(1000); // time for local and remote to sync and RT values to populate.
+
+        //  read RT params from remote radio , and write to a file in spiffs, if its conneccted.
+        Serial.write("RTI5\r");
+        Serial.flush(); // output buffer flush
+        swSer.print("----------------------------------------------");
+        data = SmartSerial->expect_s("SIS_RSSI=50\r\n",3000); 
+        while (Serial.available() ) { char t = Serial.read();  data += t; } // flush read buffer upto this point.
+        swSer.print(data);
+        swSer.print("----------------------------------------------");
+        
+        // also write params to spiffs, for user record:
+        f = SPIFFS.open("/r990x_params_remote.txt", "w");
+        f.print(data);
+        f.close();
+
 
         Serial.write("AT&Z\r"); // reboot radio to restore non-command mode.
         Serial.flush(); // output buffer flush

@@ -805,104 +805,20 @@ void handleFileUpload() {
 
 void handle900xParamList() { 
 
-    //webServer.send(200, "text/html", "couldn't do it.");
-    //return;
-
     File html = SPIFFS.open("/r900x_params.htm", "r");
-    File txt = SPIFFS.open("/r990x_params.txt", "r");
-
+ 
     html.setTimeout(50); // don't wait long as it's a file object, not a serial port.
-    txt.setTimeout(50); // don't wait long as it's a file object, not a serial port.
-
+ 
     if ( ! html ) {  // did we open this file ok, ie does it exist? 
         swSer.println("no /r900x_params.htm exists, can't display modem settings properly.\n");
         webServer.send(200, "text/html", "ERR,couldn't do it - /r900x_params.htm is missing from spiffs."); return;
     }
-    if ( ! txt ) {  // did we open this file ok, ie does it exist? 
-        swSer.println("no /r990x_params.txt exists, can't display modem settings properly.\n");
-        webServer.send(200, "text/html", "ERR,couldn't do it - /r990x_params.txt is missing from spiffs (try reflashing your 900x from this webpage)"); return;
-    }
-
-    // read entie input text file
-    String output1 = ""; // open quote
-    String output2 = "";
-
-    int done = 0; // the done variable is just incase, it stops us from looping forever.
-    while ( txt.available()  && done < 30) {
-        String line = txt.readStringUntil('\n');
-        swSer.print("showing line:(");  swSer.print(done);  swSer.print(")");  swSer.println(line); 
 
 
-        if (line.substring(0,3) == "ATI" ) { continue; } // skip nominally first line.
-        int colon_offset = line.indexOf(":"); // it should have a colon, and an = sign
-        int equals_offset = line.indexOf("="); // it should have a colon, and an = sign
-        int eol_offset = line.indexOf("\r"); // line ends with \r\n. this finds the first of these
-        //  if any of these is -1, it failed, just skip that line
-        if (( colon_offset == -1 ) || ( equals_offset == -1 ) || ( eol_offset == -1 ) ) {    
-            swSer.println("goto doneloop.");
-            goto doneloop;
-        } 
-        String ParamID = line.substring(0,colon_offset);
-        String ParamNAME = line.substring(colon_offset+1,equals_offset);
-        String ParamVAL = line.substring(equals_offset+1,eol_offset); 
-
-        output1 += "pl=pl+'" +ParamID+ ":" +ParamNAME+ "='+gv('"+ParamID+"')+'\\r\\n';\n"; // the \r\n is important or the parser in main.cpp and elsewhere ignores them. must have :, =, and \r 
-
-  //      output1 += ParamID+':'+ParamNAME+'='+ "document.getElementById('"+ParamID+"').value"+
-
-        output2 += "<tr><td>"+ParamID+":"+ParamNAME+"=<td><input type='text' id='"+ParamID+"' value='"+ParamVAL+"'></tr>\n";
-        done++; 
-    }
-    doneloop:
-
-    txt.close();
-
-    //webServer.send(200, "text/html", output2);
-    //return;
-
-
-
-    // we break the output into a bunch of smaller strings, so as not to use up all the ram.
-    String output3 = "";
-    String output4 = "";
-    String output5 = "";
-    int state = 3;
-    done=0;
-    while ( html.available()  and done < 100) {  //read a max of 100 lines from the file, typically much less than that
-        String line = html.readStringUntil('\n');
-
-        swSer.print("showing html:(");  swSer.print(done);  swSer.print(")("); swSer.print(state);  swSer.print(")");  swSer.println(line); 
-        String possible = line.substring(0,6); // first 6 chars on any given line must match either //TAG1 or <!--TA
-        //bool skip = false;
-
-        if ( state == 3 ) { output3 += line; output3 += "\n"; } 
-        if ( state == 4 ) { output4 += line; output4 += "\n"; } 
-        if ( state == 5 ) { output5 += line; output4 += "\n"; } 
-    
-        if ( possible.equals("//TAG1")  ) { 
-            state = 4;
-        } 
-        if ( possible.equals("<!--TA")  ) { 
-            state = 5;
-        } 
-        done++;
-    }
+    String contentType = getContentType("/r900x_params.htm");
+    webServer.streamFile(html, contentType);
     html.close();
 
-    String message = FPSTR(kHEADER);
-    message += "<h1>900x Setup</h1>\n";
-
-webServer.setContentLength(message.length()+output1.length()+output2.length()+output3.length()+output4.length()+output5.length());   
-webServer.send(200,"text/html",message);     //  <---Initial send includes the header
-webServer.sendContent(output3);  
-webServer.sendContent(output1);  
-webServer.sendContent(output4);  
-webServer.sendContent(output2);  
-webServer.sendContent(output5);  
-
-
-  //  webServer.send(200, "text/html", mainoutput);
-  //  swSer.print("final-html:");  swSer.println(mainoutput); 
     return;
 }
 
@@ -991,13 +907,19 @@ void handle900xParamSave() {
 
   int retval = 404; // if its good, then some sort of 200 message, depending on what happens.
 
+  File f;
+  if (webServer.hasArg("f")) { 
+       f = SPIFFS.open(webServer.arg("f"), "w");
+  } else { 
+      f = SPIFFS.open("/r990x_params.txt", "w");
+  }
+
   if(webServer.hasArg(kPLAIN)) { // ie PUT/POST content was given....
         // write params to spiffs,  TODO need better checks here, as it comes from the client, but the worse they can do is pretty minor
-       File f = SPIFFS.open("/r990x_params.txt", "w");
+       //File f = SPIFFS.open("/r990x_params.txt", "w");
        f.print(webServer.arg(kPLAIN));
        f.close();
-       message += "\nFile /r990x_params.txt written.\n";
-       
+       message += "\nFile ( params) written.\n";
 
         if (r990x_saveparams() ) { 
             message += "and 900x radio params activated to modem OK. ";
