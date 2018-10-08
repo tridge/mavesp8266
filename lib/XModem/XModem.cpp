@@ -136,8 +136,8 @@ int XModem::sendFile(File dataFile, char *fileName)
 swSer.println("sendFile....." ); 
 
   unsigned char finished=0;
-  char inChar;
-  int i;
+  char inChar = 0;
+  unsigned int i;
   unsigned char tryNo;
 
   // Rewind data file before sending the file..
