@@ -202,17 +202,27 @@ int r900x_booloader_mode_sync() {
 }
 
 
-bool r990x_getparams() { 
+
+
+bool have_we_chatted_to_modem_yet = false;
+
+bool r900x_getparams(String filename) { 
+
+   if (have_we_chatted_to_modem_yet == false ) { 
+    //r900x_setup();
+    have_we_chatted_to_modem_yet = true;
+    }
 
    int chances = 0;
    retry:
         Serial.write("\r");
-        delay(1000); 
+        Serial.flush(); // output buffer flush
+        delay(1500); 
         Serial.write("+++");
         Serial.flush(); // output buffer flush
         LEDState = !LEDState;
         digitalWrite(LEDGPIO,LEDState);
-        bool ok = SmartSerial->expect("OK",2000); 
+        bool ok = SmartSerial->expect("OK",1000); 
         if ( ok ) { 
             swSer.println("GOT OK Response from radio.\n");
             while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
@@ -223,11 +233,18 @@ bool r990x_getparams() {
             // lets give it two chances, then give up, not just one. 
             chances++;
             if (chances < 2 ) goto retry;
-            return false;
+            //return false; // might already be in command mode, let it try anyway...
+            
         } 
 
+        delay(1500); // give a just booted radio tim to be ready.
+
         //  read AT params from radio , and write to a file in spiffs.
-        Serial.write("ATI5\r");
+        String prefix = "AT";
+        if (filename == "/r900x_params_remote.txt" ) {prefix = "RT";}
+
+        String cmd = prefix+"I5\r";
+        Serial.write(cmd.c_str());
         Serial.flush(); // output buffer flush
         swSer.print("----------------------------------------------");
         String data = SmartSerial->expect_s("SIS_RSSI=50\r\n",3000); 
@@ -236,28 +253,18 @@ bool r990x_getparams() {
         swSer.print("----------------------------------------------");
         
         // also write params to spiffs, for user record:
-        f = SPIFFS.open("/r990x_params.txt", "w");
-        f.print(data);
-        f.close();
+        if ( data.length() > 20 ) { 
+            f = SPIFFS.open(filename, "w");
+            f.print(data);
+            f.close();
+        } else { 
+            swSer.println("didn't write param file, as it contained insufficient data");
+        }
 
         delay(1000); // time for local and remote to sync and RT values to populate.
 
-        //  read RT params from remote radio , and write to a file in spiffs, if its conneccted.
-        Serial.write("RTI5\r");
-        Serial.flush(); // output buffer flush
-        swSer.print("----------------------------------------------");
-        data = SmartSerial->expect_s("SIS_RSSI=50\r\n",3000); 
-        while (Serial.available() ) { char t = Serial.read();  data += t; } // flush read buffer upto this point.
-        swSer.print(data);
-        swSer.print("----------------------------------------------");
-        
-        // also write params to spiffs, for user record:
-        f = SPIFFS.open("/r990x_params_remote.txt", "w");
-        f.print(data);
-        f.close();
-
-
-        Serial.write("AT&Z\r"); // reboot radio to restore non-command mode.
+        cmd = prefix+"&Z\r";
+        Serial.write(cmd.c_str()); // reboot radio to restore non-command mode.
         Serial.flush(); // output buffer flush
         delay(200); 
 
@@ -265,9 +272,9 @@ bool r990x_getparams() {
 } 
 
 
-bool r990x_saveparams() { 
+bool r900x_saveparams(String filename) { 
 
-// iterate over the params found in r990x_params.txt and save those that aren't already set correctly
+// iterate over the params found in r900x_params.txt and save those that aren't already set correctly
 
 
     // put it into command mode first....
@@ -287,12 +294,19 @@ bool r990x_saveparams() {
     } 
 
 
-    File f = SPIFFS.open("/r990x_params.txt", "r");
+    String localfilename = "/r900x_params.txt";
+    String remotefilename = "/r900x_params_remote.txt";
+
+    File f = SPIFFS.open(filename, "r");    
+
+    String prefix = "AT";
+    if ( filename == remotefilename ) { prefix = "RT"; } 
 
     f.setTimeout(200); // don't wait long as it's a file object, not a serial port.
 
     if ( ! f ) {  // did we open this file ok, ie does it exist? 
-        swSer.println("no /r990x_params.txt exists, can't update modem settings, skipping.\n");
+        swSer.println("no txt file exists, can't update modem settings, skipping:");
+        swSer.println(filename);
         return false;
     }
 
@@ -306,6 +320,8 @@ bool r990x_saveparams() {
         String line = f.readStringUntil('\n'); // read a line, wait max 100ms.
 
         if (line.substring(0,3) == "ATI" ) { continue; } // ignore this first line.
+        if (line.substring(0,3) == "RTI" ) { continue; } // ignore this first line.
+
         //if (line == "\r\n" ) { continue; } // ignore blank line/s
         
         int colon_offset = line.indexOf(":"); // it should have a colon, and an = sign
@@ -330,7 +346,10 @@ bool r990x_saveparams() {
         String ParamVAL = line.substring(equals_offset+1,eol_offset); 
 
 
-        String ParamCMD= "AT"+ParamID+"="+ParamVAL+"\r\n";
+
+        
+        String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
+
         swSer.println(ParamCMD); // debug only.
         Serial.write(ParamCMD.c_str());
         Serial.flush(); // output buffer flush
@@ -353,7 +372,8 @@ bool r990x_saveparams() {
    save:
 
    // save params AND take out of command mode via a quick reboot
-    Serial.write("AT&W\r\nAT&Z\r\n");
+    String rebootcmd = prefix+"&W\r\n"+prefix+"&Z\r\n"; // "AT&W\r\nAT&Z\r\n"
+    Serial.write(rebootcmd.c_str());
     Serial.flush(); // output buffer flush
 
     LEDState = 0;
@@ -444,7 +464,7 @@ bool r900x_command_mode_sync() {
 }
 
 
-void r900x_setup() { 
+void r900x_setup(bool reflash) { // if true. it will attempt to reflash 
 
     delay(1000);  // allow time for 900x radio to complete its startup.? 
 
@@ -482,6 +502,21 @@ void r900x_setup() {
       f.close();
     }
 
+    // in the even we aren't reflashing, but have no parameters cached from the modem do that now
+    File p = SPIFFS.open("/r900x_params.txt", "r"); 
+    File p2 = SPIFFS.open("/r900x_params_remote.txt", "r");
+    
+    if ( !p ) { 
+        swSer.println("can't see local parameters files, re-getting in 2 secs...");
+        delay(2000);
+        r900x_getparams("/r900x_params.txt"); 
+    } 
+    if ( !p2 ) {
+        swSer.println("can't see remote parameters files, re-getting in 2 secs....");
+        delay(2000);
+        r900x_getparams("/r900x_params_remote.txt"); 
+    } 
+
 
 #define BOOTLOADERNAME "/RFDSiK900x.bin"
 #define BOOTLOADERCOMPLETE "/RFDSiK900x.bin.ok"
@@ -491,12 +526,9 @@ void r900x_setup() {
 
     if ( ! f ) {  // did we open this file ok, ie does it exist? 
         swSer.println("no firmware to program, skipping reflash.\n");
-
-        // in the even we aren't reflashing, but have no parameters cached from the modem do that now
-        File p = SPIFFS.open("/r900x_params.txt", "r"); 
-        if ( ! p ) { r990x_getparams(); }
         return;
     }
+
 
     if (( f.size() > 0) and (f.size() < 90000 )) { 
         swSer.println("incomplete or too-small firmware for 900x to program ( < 90k bytes ), deleting corrupted file and skipping reflash.\n");
@@ -593,9 +625,15 @@ retrypoint:
             //  xmodem stuff...
             swSer.println("bootloader handshake done");
 
+            if ( reflash ) { 
             swSer.println("\t\tXMODEM SENDFILE BEGAN\n");
             xok = xmodem.sendFile(f, (char *)"unused");
             swSer.println("\t\tXMODEM SENDFILE ENDED\n");
+
+            } else { 
+                swSer.println("\t\tXSKIPPING XMODEM REFLASH BECAUSE OF 'reflash' false.\n");
+
+            }
 
             //f.close();
 
@@ -643,7 +681,8 @@ retrypoint:
     while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
     Serial.flush();
     
-    r990x_getparams();  
+    r900x_getparams("/r900x_params.txt");  
+    r900x_getparams("/r900x_params_remote.txt");  
 
 
     f.close();
@@ -805,7 +844,7 @@ void setup() {
     updateServer.begin(&updateStatus); //TODO unf88k this.
 
     //try at current/stock baud rate, 57600, first.
-    r900x_setup(); // probe for 900x and if a new firware update is needed , do it.
+    r900x_setup(true); // probe for 900x and if a new firware update is needed , do it.
 
 
 

@@ -265,7 +265,7 @@ static void handle_root()
     message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode )</a>\n";
     message += "<li><a href='/setup'>WiFi/Network Setup</a>\n";
     message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
-    message += "<li><a href='/r990x_params.txt'>Get 900x Radio Parameters</a>\n";
+    message += "<li><a href='/r900x_params.txt'>Get 900x Radio Parameters</a>\n";
     message += "<li><a href='/plist'>Edit 900x Radio Parameters</a>\n";
 
   //  message += "<li><a href='/save900xparams'>Activate 900x params after editing.(be sure radio is *not* connected to a vehicle or remove device when you press this)</a>\n";
@@ -733,19 +733,21 @@ String getContentType(String filename) {
 }
 
 
-extern bool r990x_saveparams(); // its in main.cpp
+extern bool r900x_saveparams(String file); // its in main.cpp
 
+/*
 void save900xparams() { 
 
     String message = FPSTR(kHEADER);
-    if (r990x_saveparams() ) { 
+    if (r900x_saveparams("/r900x_params.txt") ) { 
         message += "900x radio params saved to modem OK. ";
     } else { 
-        message += "900x radio params save FAILED. Does file /r990x_params.txt exist? ";
+        message += "900x radio params save FAILED. Does file /r900x_params.txt exist? ";
     }
     message =+ "<a href=/>Click here to continue.</a></body></html>";
     webServer.send(200, FPSTR(kTEXTHTML), message);
 } 
+*/
 
 // by storing all the big files ( especially javascript ) in SPIFFS as .gz, we can save a bunch of space easily.
 // but this can present either form to the user
@@ -821,6 +823,23 @@ void handle900xParamList() {
 
     return;
 }
+
+// do AT and RT commands to get 
+extern bool r900x_getparams(String filename); // see main.cpp
+extern void r900x_setup(bool refresh);
+void handle900xParamRefresh() { 
+
+    //bool ret = r900x_getparams("/.....txt");
+    r900x_setup(false);
+
+    //if ( ret ) { 
+        webServer.send(200, "text/plain", "AT commands executed, params refreshed.");
+    //} else { 
+    //    webServer.send(404, "text/plain", "r900x_getparams failed, params NOT refreshed.");
+    //}
+
+} 
+
 
 // spiffs files  goto url:  http://192.168.4.1/list?dir=/
 void handleFileList() {
@@ -908,24 +927,28 @@ void handle900xParamSave() {
   int retval = 404; // if its good, then some sort of 200 message, depending on what happens.
 
   File f;
+  String filename = "/r900x_params.txt"; // default name
   if (webServer.hasArg("f")) { 
-       f = SPIFFS.open(webServer.arg("f"), "w");
+       filename = webServer.arg("f");
+       f = SPIFFS.open(filename, "w");
   } else { 
-      f = SPIFFS.open("/r990x_params.txt", "w");
+      f = SPIFFS.open(filename, "w");
   }
 
   if(webServer.hasArg(kPLAIN)) { // ie PUT/POST content was given....
         // write params to spiffs,  TODO need better checks here, as it comes from the client, but the worse they can do is pretty minor
-       //File f = SPIFFS.open("/r990x_params.txt", "w");
+       //File f = SPIFFS.open("/r900x_params.txt", "w");
        f.print(webServer.arg(kPLAIN));
        f.close();
-       message += "\nFile ( params) written.\n";
+       message += "\nFile written:";
+       message += filename;
+       message += "\n";
 
-        if (r990x_saveparams() ) { 
+        if (r900x_saveparams(filename) ) { 
             message += "and 900x radio params activated to modem OK. ";
             retval = 201;
         } else { 
-            message += "and 900x radio params activate FAILED. Does file /r990x_params.txt exist? ";
+            message += "and 900x radio params activate FAILED. Does file /r900x_params.txt exist? ";
             retval = 202;
         }
     
@@ -938,7 +961,7 @@ void handle900xParamSave() {
 
 
 
-// optionally run  save900xparams() or r990x_saveparams() 
+// optionally run  save900xparams() or r900x_saveparams() 
 
 }
 
@@ -969,7 +992,8 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
 
     webServer.on("/updatepage",       handle_update_html); // presents a webpage that then might upload a binary to the /upload endpoint via POST
 
-    webServer.on("/save900xparams",         save900xparams);
+
+//    webServer.on("/save900xparams",         save900xparams); // see /psave
 
     
     webServer.on("/upload",         HTTP_POST, handle_upload, handle_upload_status); // this save/s an uploaded file
@@ -1009,6 +1033,8 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     //webServer.send(303);
 
     webServer.on("/plist", HTTP_GET, handle900xParamList);
+
+    webServer.on("/prefresh", HTTP_GET, handle900xParamRefresh);
 
     webServer.on("/psave", HTTP_PUT, handle900xParamSave);
 

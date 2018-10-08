@@ -194,4 +194,7 @@ public:
 
 extern MavESP8266World* getWorld();
 
+void r900x_setup(); // forward declaration.
+
+
 #endif

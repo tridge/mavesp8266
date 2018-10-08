@@ -1,7 +1,8 @@
 function saveforms() {
-saveform( "local", "/r990x_params.txt" );
+// save the remote first, then the local
+saveform( "remote", "/r900x_params_remote.txt" );
     setTimeout(function() {
-      saveform( "remote", "/r990x_params_remote.txt" );
+        saveform( "local", "/r900x_params.txt" );      
     }, 5000);
 }
 
@@ -47,6 +48,12 @@ function saveform(tableid, tourl) {
             stuff2 = stuff[1].split("=");
             //x:y=z
             id=stuff[0];
+
+            if ( tourl == "/r900x_params_remote.txt" ) { 
+                // add a  'R' to the start of the id 
+                id = "R" + id; 
+            } 
+
             name=stuff2[0];
             value = document.getElementById(id).value
             //alert(id); alert(name); alert(value);
@@ -62,8 +69,8 @@ function saveform(tableid, tourl) {
 }
 
 function loadforms( ) {
-loadform( "local", "/r990x_params.txt" );
-loadform( "remote", "/r990x_params_remote.txt" );
+loadform( "local", "/r900x_params.txt" );
+loadform( "remote", "/r900x_params_remote.txt" );
 }
 
 function loadform( tableid, fromurl ) {
@@ -104,7 +111,11 @@ function loadform( tableid, fromurl ) {
             var mi = document.createElement("input");
             mi.setAttribute('type', 'text');
             mi.setAttribute('value', value);
-            mi.setAttribute('id', id);
+            if ( fromurl == "/r900x_params_remote.txt" ) { 
+                mi.setAttribute('id', "R"+id);
+            } else { 
+                mi.setAttribute('id', id);
+            }
 
             td1.appendChild(txt);
             td2.appendChild(mi);
@@ -130,7 +141,7 @@ function loadform( tableid, fromurl ) {
 
     }
   };
-  //var url = "/r990x_params.txt"; 
+  //var url = "/r900x_params.txt"; 
   xhttp.open("GET", fromurl, true);
   xhttp.send(); 
 }
