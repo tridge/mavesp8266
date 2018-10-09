@@ -187,6 +187,7 @@ File f; // global handle use for the Xmodem upload
 
 int r900x_booloader_mode_sync() { 
 
+swSer.println("r900x_booloader_mode_sync()\n");
       Serial.write("U"); // autobauder
       Serial.flush(); 
 
@@ -208,6 +209,7 @@ bool have_we_chatted_to_modem_yet = false;
 
 bool r900x_getparams(String filename) { 
 
+swSer.println("r900x_getparams()- START\n");
    if (have_we_chatted_to_modem_yet == false ) { 
     //r900x_setup();
     have_we_chatted_to_modem_yet = true;
@@ -222,10 +224,16 @@ bool r900x_getparams(String filename) {
         Serial.flush(); // output buffer flush
         LEDState = !LEDState;
         digitalWrite(LEDGPIO,LEDState);
-        bool ok = SmartSerial->expect("OK",1000); 
-        if ( ok ) { 
+        //bool ok = SmartSerial->expect("OK",1000); 
+        int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",500); // look for 'ok' or '+++'
+
+        if ( ok2 == 1 ) { 
             swSer.println("GOT OK Response from radio.\n");
             while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+        }
+        else if ( ok2 == 2 ) { 
+            // if modem echo's back the +++ we sent it, we are already in command mode.
+            goto already_in_cmd_mode;
         } else { 
             //trying = false; HACK
             swSer.print("FALED-TO-GET OK Response from radio. chance:");
@@ -237,7 +245,15 @@ bool r900x_getparams(String filename) {
             
         } 
 
+        already_in_cmd_mode:
+
         delay(1500); // give a just booted radio tim to be ready.
+
+        Serial.write("\r"); // after +++ we need to clear the line before we set AT commands
+        Serial.flush(); // output buffer flush
+        delay(500); // give a just booted radio tim to be ready.
+
+        while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this 
 
         //  read AT params from radio , and write to a file in spiffs.
         String prefix = "AT";
@@ -253,7 +269,7 @@ bool r900x_getparams(String filename) {
         swSer.print("----------------------------------------------");
         
         // also write params to spiffs, for user record:
-        if ( data.length() > 20 ) { 
+        if ( data.length() > 300 ) { // typical file length is around 400chars 
             f = SPIFFS.open(filename, "w");
             f.print(data);
             f.close();
@@ -268,12 +284,13 @@ bool r900x_getparams(String filename) {
         Serial.flush(); // output buffer flush
         delay(200); 
 
+swSer.println("r900x_getparams()- END\n");
      return true;
 } 
 
 
 bool r900x_saveparams(String filename) { 
-
+swSer.println("r900x_saveparams()\n");
 // iterate over the params found in r900x_params.txt and save those that aren't already set correctly
 
 
@@ -394,7 +411,7 @@ bool r900x_saveparams(String filename) {
 
 bool got_hex = false;
 bool r900x_command_mode_sync() { 
-
+swSer.println("r900x_command_mode_sync()\n");
         swSer.println("Trying command-mode sync....\n");
     
         Serial.write("\r");
@@ -466,6 +483,7 @@ bool r900x_command_mode_sync() {
 
 void r900x_setup(bool reflash) { // if true. it will attempt to reflash 
 
+swSer.println("r900x_setup()\n");
     delay(1000);  // allow time for 900x radio to complete its startup.? 
 
 
@@ -504,13 +522,16 @@ void r900x_setup(bool reflash) { // if true. it will attempt to reflash
 
     // in the even we aren't reflashing, but have no parameters cached from the modem do that now
     File p = SPIFFS.open("/r900x_params.txt", "r"); 
-    File p2 = SPIFFS.open("/r900x_params_remote.txt", "r");
+
     
     if ( !p ) { 
         swSer.println("can't see local parameters files, re-getting in 2 secs...");
         delay(2000);
         r900x_getparams("/r900x_params.txt"); 
     } 
+
+    File p2 = SPIFFS.open("/r900x_params_remote.txt", "r");
+
     if ( !p2 ) {
         swSer.println("can't see remote parameters files, re-getting in 2 secs....");
         delay(2000);
@@ -524,6 +545,14 @@ void r900x_setup(bool reflash) { // if true. it will attempt to reflash
 
     f = SPIFFS.open(BOOTLOADERNAME, "r");
 
+    if ( reflash) { 
+        if ( ! f ) { 
+            f.close();
+            swSer.println("flashing with .ok firrmware....\n");
+            f = SPIFFS.open(BOOTLOADERCOMPLETE, "r");
+        }
+    }
+
     if ( ! f ) {  // did we open this file ok, ie does it exist? 
         swSer.println("no firmware to program, skipping reflash.\n");
         return;
@@ -536,7 +565,9 @@ void r900x_setup(bool reflash) { // if true. it will attempt to reflash
         return;   
     } 
 
+   int xmodem_retries = 0;
 retrypoint:
+    xmodem_retries++;
 
     // first try at the default baud rate...
     int result = -1; // returns 1,2,3,4 or 5 on some sort of success
@@ -643,11 +674,14 @@ retrypoint:
             Serial.flush();
             swSer.println("\t\tBOOTNEW\r\n");
 
-            if (xok == -1 ) {  // sendfile failed, after a BOOTNEW causes the modm to power cycle, lets retry at 57600
+            if (reflash && (xok == -1) ) {  // sendfile failed, after a BOOTNEW causes the modm to power cycle, lets retry at 57600
                 
                 //Serial.begin(57600); or Serial.begin(74880); ? 
-                goto retrypoint; // sorry.
-                
+                if ( xmodem_retries < 3 ) { 
+                    goto retrypoint; // sorry. maybe a corrupted modem .bin file in spiffs?
+                }
+               swSer.println("ERROR! gave up on xmodem-reflash, sorry.");
+                                
             } 
             if ( xok == 1 ) { // flash succeeded, really, truly.
 

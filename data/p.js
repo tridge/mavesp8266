@@ -1,26 +1,48 @@
+var local_available = true;
+var remote_available = true;
+
+function onReady(yourMethod) {
+  var readyStateCheckInterval = setInterval(function() {
+    if (document && document.readyState === 'complete') { // Or 'interactive'
+      clearInterval(readyStateCheckInterval);
+      yourMethod();
+    }
+  }, 10);
+}
+// use like
+
 function saveforms() {
 // save the remote first, then the local
-saveform( "remote", "/r900x_params_remote.txt" );
-    setTimeout(function() {
-        saveform( "local", "/r900x_params.txt" );      
-    }, 5000);
+    if (remote_available == true) { 
+        saveform( "remote", "/r900x_params_remote.txt" );
+    }
+    if (local_available == true) {
+        if (remote_available == false) {
+          saveform( "local", "/r900x_params.txt" );  
+        }
+        if (remote_available == true) {
+          setTimeout(function() {
+                saveform( "local", "/r900x_params.txt" );      
+            }, 5000);
+        }
+    }
 }
 
 function saveform(tableid, tourl) {
 
   var xhttp = new XMLHttpRequest();
 
-  document.getElementById("sub").value = "Processing, Please Wait...";
+  document.getElementById("sub").value = tableid + " Processing, Please Wait...";
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("sub").value = "Params Saved.";
+      document.getElementById("sub").value = tableid + " Params Saved.";
     }
     if (this.readyState == 4 && this.status == 201) {
-      document.getElementById("sub").value = "Params Saved and Activated.";
+      document.getElementById("sub").value = tableid + " Params Saved and Activated.";
     }
     if (this.readyState == 4 && this.status == 202) {
-      ddocument.getElementById("sub").value = "Params Saved but not Activated, your modem might not be configured as-expected";
+      ddocument.getElementById("sub").value = tableid + " Params Saved but not Activated, your modem might not be configured as-expected";
     }
   };
 
@@ -68,10 +90,42 @@ function saveform(tableid, tourl) {
 
 }
 
+onReady(function() { loadforms(); } );
+
 function loadforms( ) {
 loadform( "local", "/r900x_params.txt" );
 loadform( "remote", "/r900x_params_remote.txt" );
 }
+
+function reload_fresh_params() { 
+  document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload )";
+  reload_fresh("http://192.168.4.1/prefresh?type=remote",false);
+  reload_fresh("http://192.168.4.1/prefresh?type=local",true);
+} 
+
+function reload_fresh(url,reload) { 
+
+  var xhttp = new XMLHttpRequest();
+
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      //document.getElementById("sub").value = "Params Saved.";
+      paramdata = this.responseText;
+      //alert("ok, handled:"+url);
+        if ( reload) {
+            window.location.reload(true);
+        } 
+    }
+    if (this.readyState == 4 && this.status == 404) {
+        alert("err, unhandled:"+url);
+    }
+
+  }
+
+  xhttp.open("GET", url, true);
+  xhttp.send();
+
+} 
 
 function loadform( tableid, fromurl ) {
 
@@ -138,6 +192,10 @@ function loadform( tableid, fromurl ) {
             td1.appendChild(txt);
             tr.appendChild(td1);
             table.appendChild(tr);
+
+            if ( tableid == "local" ) { local_available = false; }
+            if ( tableid == "remote") { remote_available = false; }
+
 
     }
   };

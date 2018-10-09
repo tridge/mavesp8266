@@ -182,7 +182,7 @@ void handle_upload_status() {
     } else if (upload.status == UPLOAD_FILE_END) {
         if (Update.end(true)) {
             #ifdef DEBUG_SERIAL
-                DEBUG_SERIAL.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                DEBUG_SERIAL.printf("Update Success: %u\nReboot Needed.\n", upload.totalSize);
             #endif
               webServer.sendHeader("Location","/success.htm");      // Redirect the client to the success page
               webServer.send(303);
@@ -267,8 +267,6 @@ static void handle_root()
     message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
     message += "<li><a href='/r900x_params.txt'>Get 900x Radio Parameters</a>\n";
     message += "<li><a href='/plist'>Edit 900x Radio Parameters</a>\n";
-
-  //  message += "<li><a href='/save900xparams'>Activate 900x params after editing.(be sure radio is *not* connected to a vehicle or remove device when you press this)</a>\n";
     message += "<li><a href='/updatepage'>Update Firmware</a>\n";
     message += "<li><a href='/reboot'>Reboot</a>\n";
     message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
@@ -293,14 +291,14 @@ static void handle_root()
 //---------------------------------------------------------------------------------
 static void handle_update_html()
 {
-    String message = "";
+    String message = "oops, sory, try rebooting.";
     // if we have an index.html in spiffs, use that, otherwise use a basic version that's included below.
     File f = SPIFFS.open("/update.htm", "r");
     if ( f ) { 
-            message += f.readString();
+            message = f.readString();
     } else {  // in the event that update.htm is missing, give enough so we can upload a spiffs.bin and make one:
 
-        message +=  FPSTR(kHEADER);
+        message =  FPSTR(kHEADER);
         message += "Please upload a spiffs.bin to continue: \n";
         message += "<form method='POST' action='/update' enctype='multipart/form-data'>\n";
         message += "Spiffs:<br>\n";
@@ -309,7 +307,7 @@ static void handle_update_html()
         message += "</form>\n";
 
     }
-    setNoCacheHeaders();
+    //setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
@@ -805,6 +803,7 @@ void handleFileUpload() {
   //webServer.send(200, "text/plain", "");
 }
 
+// /plist
 void handle900xParamList() { 
 
     File html = SPIFFS.open("/r900x_params.htm", "r");
@@ -827,16 +826,28 @@ void handle900xParamList() {
 // do AT and RT commands to get 
 extern bool r900x_getparams(String filename); // see main.cpp
 extern void r900x_setup(bool refresh);
+
+// /prefresh
 void handle900xParamRefresh() { 
 
-    //bool ret = r900x_getparams("/.....txt");
-    r900x_setup(false);
+    String type = webServer.arg("type");
 
-    //if ( ret ) { 
-        webServer.send(200, "text/plain", "AT commands executed, params refreshed.");
-    //} else { 
-    //    webServer.send(404, "text/plain", "r900x_getparams failed, params NOT refreshed.");
-    //}
+    if ( type == "local" ) { 
+    bool ret = r900x_getparams("/r900x_params.txt");
+    }
+    if ( type == "remote" ) { 
+    bool ret = r900x_getparams("/r900x_params_remote.txt");
+    }
+    if ( type == "setup" ) { 
+    r900x_setup(false);
+    }
+    if ( type == "reflash" ) { 
+    r900x_setup(true);
+    }
+
+    type = "handle900xParamRefresh() executed. type:"+type;
+
+    webServer.send(200, "text/plain", type );
 
 } 
 
