@@ -9,7 +9,7 @@ function onReady(yourMethod) {
     }
   }, 10);
 }
-// use like
+
 
 function saveforms() {
 // save the remote first, then the local
@@ -42,7 +42,7 @@ function saveform(tableid, tourl) {
       document.getElementById("sub").value = tableid + " Params Saved and Activated.";
     }
     if (this.readyState == 4 && this.status == 202) {
-      ddocument.getElementById("sub").value = tableid + " Params Saved but not Activated, your modem might not be configured as-expected";
+      document.getElementById("sub").value = tableid + " Params Saved but not Activated, your modem might not be configured as-expected";
     }
   };
 
@@ -52,19 +52,8 @@ function saveform(tableid, tourl) {
 
     // skip ZERO'th row, as it's the TH header row.
     for (var i = 1, row; row = table.rows[i]; i++) {
-       //iterate through rows
-       //rows would be accessed using the "row" variable assigned in the for loop
-       //for (var j = 0, col; col = row.cells[j]; j++) {
-         //iterate through columns
-         //columns would be accessed using the "col" variable assigned in the for loop
-            //alert(JSON.stringify(col));
-           // alert(col.innerHTML);
-       //} 
 
        var id_name = row.cells[0].innerHTML; 
-        //alert(id_name);
-       //var input_field = row.cells[1].innerHTML;
-        //alert(input_field);
 
             stuff = id_name.split(":");
             stuff2 = stuff[1].split("=");
@@ -78,7 +67,6 @@ function saveform(tableid, tourl) {
 
             name=stuff2[0];
             value = document.getElementById(id).value
-            //alert(id); alert(name); alert(value);
             payload = payload + id_name + value + "\r\n";
         
     }
@@ -98,9 +86,19 @@ loadform( "remote", "/r900x_params_remote.txt" );
 }
 
 function reload_fresh_params() { 
+  unloadform();
   document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload )";
   reload_fresh("http://192.168.4.1/prefresh?type=remote",false);
-  reload_fresh("http://192.168.4.1/prefresh?type=local",true);
+  reload_fresh("http://192.168.4.1/prefresh?type=local",false);
+} 
+
+// same as a reload_fresh_params(), but with an additional factory=yes, which behind the curtain adds an AT&W and AT&F etc 
+// just before reading fresh params from the radio.
+function factory() { 
+  unloadform();
+  document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload ) - ALSO Factory resetting.";
+  reload_fresh("http://192.168.4.1/prefresh?type=remote&factory=yes",false);
+  reload_fresh("http://192.168.4.1/prefresh?type=local&factory=yes",false);
 } 
 
 function reload_fresh(url,reload) { 
@@ -109,11 +107,10 @@ function reload_fresh(url,reload) {
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      //document.getElementById("sub").value = "Params Saved.";
       paramdata = this.responseText;
-      //alert("ok, handled:"+url);
         if ( reload) {
             window.location.reload(true);
+           
         } 
     }
     if (this.readyState == 4 && this.status == 404) {
@@ -126,16 +123,24 @@ function reload_fresh(url,reload) {
   xhttp.send();
 
 } 
+function unloadform(tableid){ 
+
+    var table = document.getElementById(tableid);
+    if ( tableid == 'local' ) {
+    myNode.innerHTML = '<th>REMOTE RADIO (RTI5)</th>';
+    }
+    if ( tableid == 'remote' ) {
+    myNode.innerHTML = '<th>LOCAL RADIO (ATI5)</th>';
+    }
+} 
 
 function loadform( tableid, fromurl ) {
 
   var xhttp = new XMLHttpRequest();
   var paramdata = '';
-  //document.getElementById("sub").value = "Processing, Please Wait...";
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      //document.getElementById("sub").value = "Params Saved.";
       paramdata = this.responseText;
         var paramsarray = paramdata.split("\n");
 
@@ -143,13 +148,11 @@ function loadform( tableid, fromurl ) {
         for(var x in paramsarray){  
             if  ( paramsarray[x].substring(0,4) == "ATI5" ) continue;
             if  ( paramsarray[x].substring(0,4) == "RTI5" ) continue;
-            //alert(paramsarray[x]);
+
             var line = paramsarray[x];
             if  ( line == "" ) continue;
             stuff = line.split(":");
             stuff2 = stuff[1].split("=");
-            //alert(stuff);
-            //alert(stuff2);
             //x:y=z
             id=stuff[0];
             name=stuff2[0];
@@ -178,7 +181,6 @@ function loadform( tableid, fromurl ) {
             tr.appendChild(td2);
             table.appendChild(tr);
 
-            //document.getElementById(id).value = value;
         }
 
     }

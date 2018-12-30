@@ -263,10 +263,10 @@ static void handle_root()
     message += "<ul>\n";
     message += "<li><a href='/getstatus'>Get Status ( UDP/Mavlink mode )</a>\n";
     message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode )</a>\n";
-    message += "<li><a href='/setup'>WiFi/Network Setup</a>\n";
-    message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
-    message += "<li><a href='/r900x_params.txt'>Get 900x Radio Parameters</a>\n";
-    message += "<li><a href='/plist'>Edit 900x Radio Parameters</a>\n";
+    message += "<li><a href='/setup'>View/Edit WiFi/Network Setup</a>\n";
+//    message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
+//    message += "<li><a href='/r900x_params.txt'>Get 900x Radio Parameters</a>\n";
+    message += "<li><a href='/plist'>View/Edit 900x Radio Parameters</a>\n";
     message += "<li><a href='/updatepage'>Update Firmware</a>\n";
     message += "<li><a href='/reboot'>Reboot</a>\n";
     message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
@@ -469,6 +469,8 @@ extern bool tcp_passthrumode;
     } else { 
     message += "<font color=red>NOT In TCP pass-through mode right now</font><br>\n";
     }
+
+    message += "<font color=green>To connect your GCS in TCP mode, please connect as a TCP client to IP: 192.168.4.1, with port number 23.</font><br>\n";
 
     message += "<table><tr><td width=\"240\">TCP Bytes Received from GCS</td><td>";
     message += stats_tcp_in;
@@ -824,7 +826,7 @@ void handle900xParamList() {
 }
 
 // do AT and RT commands to get 
-extern bool r900x_getparams(String filename); // see main.cpp
+extern int r900x_getparams(String filename,bool factory_reset_first); // see main.cpp
 extern void r900x_setup(bool refresh);
 
 // /prefresh
@@ -832,11 +834,17 @@ void handle900xParamRefresh() {
 
     String type = webServer.arg("type");
 
+    String factory = webServer.arg("factory");
+    bool f = false;
+    // a factory-default of the 900 radios is actually a r900x_getparams() request with the 2nd "factory_reset_first" parameter true
+    if ( factory == "yes" ) {  f = true; }
+
+    int num_read = 0;
     if ( type == "local" ) { 
-    bool ret = r900x_getparams("/r900x_params.txt");
+    num_read = r900x_getparams("/r900x_params.txt",f);
     }
     if ( type == "remote" ) { 
-    bool ret = r900x_getparams("/r900x_params_remote.txt");
+    num_read = r900x_getparams("/r900x_params_remote.txt",f);
     }
     if ( type == "setup" ) { 
     r900x_setup(false);
@@ -845,7 +853,10 @@ void handle900xParamRefresh() {
     r900x_setup(true);
     }
 
-    type = "handle900xParamRefresh() executed. type:"+type;
+    //todo would this be better sent as json ? 
+    //var mydata = JSON.parse(data);
+    type = "handle900xParamRefresh() executed. type:"+type+" num_read:"+num_read;
+
 
     webServer.send(200, "text/plain", type );
 
