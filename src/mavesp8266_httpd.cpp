@@ -311,13 +311,13 @@ static void handle_update_html()
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
-//---------------------------------------------------------------------------------
-static void handle_setup()
+
+static void handle_setup_adv(String more)
 {
     String message = FPSTR(kHEADER);
     message += "<h1>Wifi Setup</h1>\n";
-    message += "<form action='/setparameters' method='post'>\n";
-
+    message += more;
+    message += "<form action='/setparameters' method='post' onsubmit=\"p=document.getElementById('pwd'); if ( p.value.length < 8 ){p.value='toshort';return false;} return true;\" >\n";
     message += "WiFi Mode:&nbsp;";
     message += "<input type='radio' name='mode' value='0'";
     if (getWorld()->getParameters()->getWifiMode() == WIFI_MODE_AP) {
@@ -336,7 +336,7 @@ static void handle_setup()
     message += "'><br>";
 
     message += "AP Password (min len 8):&nbsp;";
-    message += "<input type='text' name='pwd' value='";
+    message += "<input type='text' name='pwd' id='pwd' value='";
     message += getWorld()->getParameters()->getWifiPassword();
     message += "'><br>";
 
@@ -389,13 +389,17 @@ static void handle_setup()
     message += getWorld()->getParameters()->getUartBaudRate();
     message += "'><br>";
     
-    message += "<input type='submit' value='Save'>";
+    message += "<input type='submit' value='Save' onclick="">";
     message += "</form>";
     setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
-
+//---------------------------------------------------------------------------------
+static void handle_setup()
+{
+    return handle_setup_adv("");
+}
 //---------------------------------------------------------------------------------
 static void handle_getStatus()
 {
@@ -588,7 +592,7 @@ void handle_getJSysStatus()
 }
 
 //---------------------------------------------------------------------------------
-void handle_setParameters()
+void handle_setParameters() // accept updated param/s via POST, save them, then display standard 'edit' form with new data.
 {
     if(webServer.args() == 0) {
         returnFail(kBADARG);
@@ -658,7 +662,8 @@ void handle_setParameters()
     if(ok) {
         getWorld()->getParameters()->saveAllToEeprom();
         //-- Send new parameters back
-        handle_getParameters();
+        //handle_getParameters();
+        handle_setup_adv("<font color=green>Params are Saved to EEPROM!</font>");
         if(reboot) {
             delay(100);
             ESP.restart();
