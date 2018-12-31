@@ -235,6 +235,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         }
         else if ( ok2 == 2 ) { 
             // if modem echo's back the +++ we sent it, we are already in command mode.
+            swSer.println(F("radio is already_in_cmd_mode, continuing...\n"));
             goto already_in_cmd_mode;
         } else { 
             //trying = false; HACK
@@ -263,6 +264,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
         // untested- implement factory_reset_first boolean
         if ( factory_reset_first ) { 
+            swSer.print(F("attempting factory reset.... &W and &F ... \n"));
             //String cmd = prefix+"&F\r"+
             String factorycmd = prefix+"&W\r\n"+prefix+"&F\r\n"; 
             Serial.write(factorycmd.c_str());
@@ -270,9 +272,10 @@ int r900x_getparams(String filename, bool factory_reset_first) {
             //swSer.print(F("----------------------------------------------"));
             bool b = SmartSerial->expect("OK",3000); 
             while (Serial.available() ) { char t = Serial.read();  } // flush read buffer upto this point and discard
-            swSer.print(F("attempted factory reset."));
+            swSer.print(F("...attempted factory reset.\n"));
         }
 
+        // now get params list ATI5 or RTI5 as needed 
         String cmd = prefix+"I5\r";
         Serial.write(cmd.c_str());
         Serial.flush(); // output buffer flush
@@ -487,7 +490,15 @@ bool r900x_command_mode_sync() {
                 continue;
             } 
 
-            while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity ( it has version info )
+            // this line *may* have started with 'RFD SiK' ( we matched on the SiK above), and end with '2.65 on RFD900X R1.3' 
+            String vers = "RFD SiK";
+            while (Serial.available() ) { char t = Serial.read();  swSer.print(t); vers += t; } // flush read buffer upto this point, displaying it for posterity ( it has version info )
+
+            if (vers.indexOf(" on ") > 10  ) { //"RFD SiK Q.QQ on RFDXXXX RZ.Z"
+                swSer.print(F("VERSION STRING FOUND:"));
+                swSer.println(vers);
+            }
+
 
 
             swSer.println(F("\t\tSending AT&UPDATE to radio...\n"));
@@ -507,7 +518,7 @@ bool r900x_command_mode_sync() {
 }
 
 
-void r900x_setup(bool reflash) { // if true. it will attempt to reflash, if false it will go through the motions.
+void r900x_setup(bool reflash) { // if true. it will attempt to reflash ( and factory defaults), if false it will go through the motions.
 
     swSer.println(F("r900x_setup(...)\n"));
     delay(1000);  // allow time for 900x radio to complete its startup.? 
@@ -745,11 +756,11 @@ retrypoint:
     while (Serial.available() ) { char t = Serial.read();  swSer.print(t); } // flush read buffer upto this point, displaying it for posterity.
     Serial.flush();
 
-   //we should put a AT&F here to factory-reset the modem after the reflash and before we get params from it
+    //we put a AT&F here to factory-reset the modem after the reflash and before we get params from it
     
     if (reflash ) { 
-    r900x_getparams("/r900x_params_remote.txt",true);  
-    r900x_getparams("/r900x_params.txt",true);  
+    r900x_getparams("/r900x_params_remote.txt",true);  // true = reset to factory defaults before reading params
+    r900x_getparams("/r900x_params.txt",true);         // true = reset to factory defaults before reading params
     } else { 
     r900x_getparams("/r900x_params_remote.txt",false);  
     r900x_getparams("/r900x_params.txt",false);  
@@ -918,9 +929,10 @@ void setup() {
     //-- Initialize Update Server
     updateServer.begin(&updateStatus); 
 
-    //try at current/stock baud rate, 57600, first.
-    r900x_setup(true); // probe for 900x and if a new firware update is needed , do it.
+    // TODO , the r900x_setup() can take some time to run, is is possible that we could get the webserver responding to requests during this period?
 
+    //try at current/stock baud rate, 57600, first.
+    r900x_setup(true); // probe for 900x and if a new firware update is needed , do it.  CAUTION may hang in retries if 900x modem is NOT attached
 
 
 swSer.println(F("setup() complete"));
@@ -1082,5 +1094,5 @@ void loop() {
         }
 
     }
-    updateServer.checkUpdates();
+    updateServer.checkUpdates(); // aka webserver.handleClient()
 }
