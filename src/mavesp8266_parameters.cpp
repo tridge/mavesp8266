@@ -41,8 +41,8 @@
 #include "mavesp8266_parameters.h"
 #include "crc.h"
 
-const char* kDEFAULT_SSID       = "ArduPilot";
-const char* kDEFAULT_PASSWORD   = "ardupilot";
+const char* kDEFAULT_SSID       = "TXMOD"; // this compiled-in default is updated on first boot to TXMOD-XX-XX-XX 
+const char* kDEFAULT_PASSWORD   = "txmod123"; //needs to be min 8 chars and easy for the first-time-user to discover
 
 //-- Reserved space for EEPROM persistence. A change in this will cause all values to reset to defaults.
 #define EEPROM_SPACE            32 * sizeof(uint32_t)

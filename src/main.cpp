@@ -892,6 +892,15 @@ void setup() {
     }
 
     if(Parameters.getWifiMode() == WIFI_MODE_AP){
+
+        // look at the out-of-box SSID which is compiled-in as 'TXMOD' and revise it to TXMOD-xx-xx-xx-xx-xx-xx if needed.
+        char *_tmp_wifi_ssid;
+        _tmp_wifi_ssid = Parameters.getWifiSsid();
+        int compare= strcmp(_tmp_wifi_ssid, "TXMOD");
+        if ( compare == 0 ) {  // equal zero means it's still set as compiled-in 'TXMOD'
+          Parameters.setWifiSsid(mdnsName);
+        }
+
         DEBUG_LOG("\nEntering AP mode...\n");
         //-- Start AP
         WiFi.mode(WIFI_AP);
