@@ -28,4 +28,23 @@ during normal UDP operations, LEDs flickers/pulses as UDP data goes through it. 
 Factory Reset:
 Press&Release the button on the TXMOD 5 times within 5 seconds, and it will reboot and all the wifi settings will be factory-defaulted back to their original values.
 
+be sure that your 'mkspiffs' command is newer than 0.2.0, prefer 0.2.3 :
+reason:
+https://www.esp32.com/viewtopic.php?t=5051
+
+my path: 
+/home/buzz/.platformio/packages/tool-mkspiffs/mkspiffs
+eg on linux: 
+if yours is too old, you might be able to do a 'platformio update' and get a version newer than 1.2.00.0, but 
+Updating tool-mkspiffs                   @ 1.200.0        [Up-to-date]
+I had to get a newer mkspiffs from here:
+wget https://github.com/igrr/mkspiffs/releases/download/0.2.3/mkspiffs-0.2.3-arduino-esp8266-linux64.tar.gz
+tar -zxvpf mkspiffs-0.2.3-arduino-esp8266-linux64.tar.gz 
+cp mkspiffs-0.2.3-arduino-esp8266-linux64/mkspiffs /home/buzz/.platformio/packages/tool-mkspiffs/mkspiffs
+
+/home/buzz/.platformio/packages/tool-mkspiffs/mkspiffs --version
+mkspiffs ver. 0.2.3
+
+
+
 
