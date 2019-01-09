@@ -37,7 +37,7 @@ static const char serverIndex[] PROGMEM =
 
 
 static const char successResponse[] PROGMEM = 
-  "<META http-equiv=\"refresh\" content=\"15;URL=/\">Update Success! Rebooting...\n";
+  "<META http-equiv=\"refresh\" content=\"15;URL=/\">Update Success! Rebooting...<br>\nThis may take up-to a full MINUTE to come back on, so please be patient as it does this.<br>\n";
 
 ESP8266HTTPUpdateServer::ESP8266HTTPUpdateServer(bool serial_debug)
 {

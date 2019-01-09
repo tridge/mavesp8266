@@ -64,11 +64,15 @@ class MavESP8266GCS;
 #define HEARTBEAT_TIMEOUT           10 * 1000
 
 //-- TODO: This needs to come from the build system
+// maybe like this: date +"%y %m%d %H%I"
 #define MAVESP8266_VERSION_MAJOR    1
-#define MAVESP8266_VERSION_MINOR    2
-#define MAVESP8266_VERSION_BUILD    2
+#define MAVESP8266_VERSION_MINOR    3
+#define MAVESP8266_VERSION_BUILD    0
 #define MAVESP8266_VERSION          ((MAVESP8266_VERSION_MAJOR << 24) & 0xFF00000) | ((MAVESP8266_VERSION_MINOR << 16) & 0x00FF0000) | (MAVESP8266_VERSION_BUILD & 0xFFFF)
 
+
+#define BOOTLOADERNAME "/RFDSiK900x.bin"
+#define BOOTLOADERCOMPLETE "/RFDSiK900x.bin.ok"
 
 //Serial uses UART0, which is mapped to pins GPIO1 (TX) and GPIO3 (RX).  the pins for Serial0 can go on other pins if configured as such.
 // after a Serial.swap() Serial0 uses  GPIO13 and GPIO15 ( TXD2 and RXD2 )

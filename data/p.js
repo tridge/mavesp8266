@@ -90,6 +90,7 @@ function reload_fresh_params() {
   document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload )";
   reload_fresh("http://192.168.4.1/prefresh?type=remote",false);
   reload_fresh("http://192.168.4.1/prefresh?type=local",false);
+  document.getElementById("fresh").value = "Load Fresh Params";
 } 
 
 // same as a reload_fresh_params(), but with an additional factory=yes, which behind the curtain adds an AT&W and AT&F etc 
@@ -99,15 +100,26 @@ function factory() {
   document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload ) - ALSO Factory resetting.";
   reload_fresh("http://192.168.4.1/prefresh?type=remote&factory=yes",false);
   reload_fresh("http://192.168.4.1/prefresh?type=local&factory=yes",false);
+  document.getElementById("fresh").value = "Load Fresh Params";
 } 
 
 function reload_fresh(url,reload) { 
 
   var xhttp = new XMLHttpRequest();
+  var jsondata = '';
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      paramdata = this.responseText;
+      jsondata = this.responseText;
+
+        var obj = JSON.parse(jsondata);
+
+        //if obj.request == "paramrefresh" 
+        //if obj.type == "local" or "remote"
+        //if obj.num_read == 23
+
+        alert("Refreshed ("+obj.num_read+") Params from the ("+obj.type+") Radio");
+
         if ( reload) {
             window.location.reload(true);
            

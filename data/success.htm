@@ -9,6 +9,7 @@ function starttimer() {
       document.getElementById("progressBar").value = 60 - --timeleft;
       if  ( cameback == true ) { 
          document.getElementById("doit").innerHTML = "Device Has Finished Rebooting"; 
+         window.location.href = '/updatepage';
       } 
       if (( cameback == false ) && ( checkforserverback() )) { 
       }
