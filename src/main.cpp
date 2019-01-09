@@ -270,10 +270,12 @@ int r900x_getparams(String filename, bool factory_reset_first) {
             Serial.write(factorycmd.c_str());
             Serial.flush(); // output buffer flush
             //swSer.print(F("----------------------------------------------"));
-            bool b = SmartSerial->expect("OK",3000); 
-            while (Serial.available() ) { char t = Serial.read();  } // flush read buffer upto this point and discard
+            bool b = SmartSerial->expect("OK",3000); b = !b; // avoid compiler warnings only.
+            while (Serial.available() ) { Serial.read();  } // flush read buffer upto this point and discard
             swSer.print(F("...attempted factory reset.\n"));
         }
+
+        // TODO get version info here from local and/or remote modem with an AT command
 
         // now get params list ATI5 or RTI5 as needed 
         String cmd = prefix+"I5\r";
@@ -286,13 +288,13 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         swSer.print(F("----------------------------------------------"));
 
         // count number of lines in output, and return it as result.
-        int linecount = 0;
-        for ( int c = 0 ; c < data.length(); c++ ) { 
+        unsigned int linecount = 0;
+        for ( unsigned int c = 0 ; c < data.length(); c++ ) { 
             if ( data.charAt(c) == '\n' ) { linecount++; }
         }
 
         // as user experience uses the SPIFFS .txt to render the html page, we cleanup an old one if we've been asked
-        // to get fresh params, even if we cant replace it, as the *absense* of it mean sthe remote radio is no longer connected.
+        // to get fresh params, even if we cant replace it, as the *absense* of it means the remote radio is no longer connected.
         SPIFFS.remove(filename); 
 
         
@@ -320,7 +322,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
 bool r900x_saveparams(String filename) { 
 swSer.println(F("r900x_saveparams()\n"));
-// iterate over the params found in r900x_params.txt and save those that aren't already set correctly
+// iterate over the params found in r900x_params.txt and save them to the modem as best as we can.
 
 
     // put it into command mode first....
@@ -390,8 +392,6 @@ swSer.println(F("r900x_saveparams()\n"));
         String ParamID = line.substring(0,colon_offset);
         String ParamNAME = line.substring(colon_offset+1,equals_offset);
         String ParamVAL = line.substring(equals_offset+1,eol_offset); 
-
-
 
         
         String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
@@ -497,6 +497,11 @@ bool r900x_command_mode_sync() {
             if (vers.indexOf(" on ") > 10  ) { //"RFD SiK Q.QQ on RFDXXXX RZ.Z"
                 swSer.print(F("VERSION STRING FOUND:"));
                 swSer.println(vers);
+
+                // save version string to a file for later use by the webserver to present to the user.
+                File v = SPIFFS.open("/r900x_version.txt", "w"); 
+                v.print(vers);
+                v.close();
             }
 
 
@@ -576,8 +581,6 @@ void r900x_setup(bool reflash) { // if true. it will attempt to reflash ( and fa
     } 
 
 
-#define BOOTLOADERNAME "/RFDSiK900x.bin"
-#define BOOTLOADERCOMPLETE "/RFDSiK900x.bin.ok"
 
 
     f = SPIFFS.open(BOOTLOADERNAME, "r");
@@ -804,6 +807,33 @@ bool tcp_passthrumode = false;
 //#define DEBUG_LOG swSer.println
 
 
+String mac2String(byte ar[]){
+  String s;
+  for (byte i = 0; i < 6; ++i)
+  {
+    char buf[3];
+    sprintf(buf, "%2X", ar[i]);
+    s += buf;
+    if (i < 5) s += '-'; // traditionally a :, but we want a - in this case
+  }
+  return s;
+}
+
+String half_mac2String(byte ar[]){
+  String s;
+  for (byte i = 3; i < 6; ++i)
+  {
+    char buf[3];
+    sprintf(buf, "%2X", ar[i]);
+    s += buf;
+    if (i < 5) s += '-'; // traditionally a :, but we want a - in this case
+  }
+  return s;
+}
+
+// global
+String mac_s;
+String mac_ap_s;
 
 //---------------------------------------------------------------------------------
 //-- Set things up
@@ -860,6 +890,23 @@ void setup() {
 
     WiFi.disconnect(true);
 
+
+    // get MAC address of adaptor as used in STA mode
+    byte mac[6]; 
+    WiFi.macAddress(mac);
+    // as a string as well as its easier.
+    String mac_half_s = half_mac2String(mac);
+    mac_s = mac2String(mac); // set this as a global, as we use it 'extern' in  http server to show to the user.
+
+    // get MAC address of adaptor as used in AP mode
+    byte mac_ap[6]; 
+    WiFi.softAPmacAddress(mac_ap);
+    mac_ap_s = mac2String(mac_ap); // set this as a global, as we use it 'extern' in  http server to show to the user.
+
+    //-- MDNS
+    char mdnsName[256];
+    sprintf(mdnsName, "TXMOD-%s",mac_half_s.c_str());
+    //sprintf(mdsnName, "TXMOD123");
 
     if(Parameters.getWifiMode() == WIFI_MODE_STA){
         DEBUG_LOG("\nEntering station mode...\n");

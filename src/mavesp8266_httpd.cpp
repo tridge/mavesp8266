@@ -233,11 +233,74 @@ void handle_getParameters()
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
+String getContentType(String filename) {
+  if (webServer.hasArg("download")) {
+    return "application/octet-stream";
+  } else if (filename.endsWith(".htm")) {
+    return "text/html";
+  } else if (filename.endsWith(".html")) {
+    return "text/html";
+  } else if (filename.endsWith(".css")) {
+    return "text/css";
+  } else if (filename.endsWith(".js")) {
+    return "application/javascript";
+  } else if (filename.endsWith(".png")) {
+    return "image/png";
+  } else if (filename.endsWith(".gif")) {
+    return "image/gif";
+  } else if (filename.endsWith(".jpg")) {
+    return "image/jpeg";
+  } else if (filename.endsWith(".ico")) {
+    return "image/x-icon";
+  } else if (filename.endsWith(".xml")) {
+    return "text/xml";
+  } else if (filename.endsWith(".pdf")) {
+    return "application/x-pdf";
+  } else if (filename.endsWith(".zip")) {
+    return "application/x-zip";
+  } else if (filename.endsWith(".gz")) {
+    return "application/x-gzip";
+  } else if (filename.endsWith(".txt")) {
+    return "text/plain";
+  } else if (filename.endsWith(".json")) {
+    return "application/json";
+  }
+  return "text/plain";
+}
+
+#define DBG_OUTPUT_PORT swSer
+	
+// by storing all the big files ( especially javascript ) in SPIFFS as .gz, we can save a bunch of space easily.
+// but this can present either form to the user
+bool handleFileRead(String path) {
+  DBG_OUTPUT_PORT.println("handleFileRead: " + path);
+  if (path.endsWith("/")) {
+    path += "index.htm";
+  }
+  String contentType = getContentType(path);
+  String pathWithGz = path + ".gz";
+  if (SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)) {
+    if (SPIFFS.exists(pathWithGz)) {
+      path += ".gz";
+    }
+    File file = SPIFFS.open(path, "r");
+    webServer.streamFile(file, contentType);
+    file.close();
+    return true;
+  }
+  return false;
+}
+
+
+
 //---------------------------------------------------------------------------------
 static void handle_root()
 {
+
+    File cache = SPIFFS.open("/index.cache", "w");
+
     String message = FPSTR(kHEADER);
-    message += "Version: ";
+    message += "TXMOD Software Version: RFD-";
     char vstr[30];
     snprintf(vstr, sizeof(vstr), "%u.%u.%u", MAVESP8266_VERSION_MAJOR, MAVESP8266_VERSION_MINOR, MAVESP8266_VERSION_BUILD);
     message += vstr;
@@ -245,70 +308,81 @@ static void handle_root()
     message += "Git Version: ";
     message += GIT_VERSION_STRING;
     message += "<br>\n";
-   /* message += "Build Date: ";
+    message += "Build Date: ";
     message += BUILD_DATE_STRING;
     message += " ";
-    message += BUILD_TIME_STRING; */
+    message += BUILD_TIME_STRING; 
+    message += "<br>\n";
+
+extern String mac_s;
+extern String mac_ap_s;
+
+    message += "STA MAC Address:";
+    message += mac_s; 
+    message += "<br>\n";
+    message += "AP MAC Address:";
+    message += mac_ap_s; 
+    message += "<br>\n";
+
+    cache.print(message); 
+    message = "";
+
+    // try to open a version file for the 900x inside the txmod, continue without it anyway.
+    File v = SPIFFS.open("/r900x_version.txt", "r");
+    if ( v ) { 
+        message += "900x Modem Version: ";
+        message += v.readString();
+        v.close();
+    }
     message += "<p>\n";
 
+    cache.print(message); 
+    message = "";
 
-    // if we have an index.html in spiffs, use that, otherwise use a basic version that's included below.
+    // if we have an index.html in spiffs, build a cahce based on that, otherwise use a basic version that's included below.
+    // CAUTION: this cache to spiffs is becasue of a breakdown if the resulting index.htm we send is more than abut 6k in size
+    // but could be made to work on bigger files if we write the above to spiffs as (say) index.cache, then 
+    //sent the result with handleFileRead("/index.cache"). 
     File f = SPIFFS.open("/index.htm", "r");
     if ( f ) { 
-        //while ( f.available() ) { 
-            message += f.readString();
-        //}
-    } else { 
+        message += f.readString();
+        f.close();
+    } 
+
+    cache.print(message); 
+    message = "";
+
+    cache.close(); // close index.cache
+
+ 
+    // try to render /index.cache as-is, otherwise fallback to this more minimal static version... 
+    if (!handleFileRead("/index.cache")) {
     
-    message += "<ul>\n";
-    message += "<li><a href='/getstatus'>Get Status ( UDP/Mavlink mode )</a>\n";
-    message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode )</a>\n";
-    message += "<li><a href='/setup'>View/Edit WiFi/Network Setup</a>\n";
-//    message += "<li><a href='/getparameters'>Get TXMOD Parameters</a>\n";
-//    message += "<li><a href='/r900x_params.txt'>Get 900x Radio Parameters</a>\n";
-    message += "<li><a href='/plist'>View/Edit 900x Radio Parameters</a>\n";
-    message += "<li><a href='/updatepage'>Update Firmware</a>\n";
-    message += "<li><a href='/reboot'>Reboot</a>\n";
-    message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
-    message += "</ul>\n";
-    message += "<hr>\n";
-    message += "<h2>Documentation</h2>\n";
-    message += "(requires internet access)<br>\n";
-    message += "<ul>\n";
-    message += "<li><a href='http://ardupilot.org'>ArduPilot Website</a>\n";
-    message += "<li><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP8266 WiFi Documentation</a>\n";
-    message += "<li><a href='https://github.com/RFDesign/mavesp8266'>RFDesign ESP8266 Source Code</a>\n";
-    message += "<li><a href='http://files.rfdesign.com.au/firmware/'>RFDesign TXMOD Firmware Updates</a>\n";
+        String message = FPSTR(kHEADER);
+        message += "<ul>\n";
+        message += "<li><a href='/getstatus'>Get Status ( UDP/Mavlink mode )</a>\n";
+        message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode )</a>\n";
+        message += "<li><a href='/setup'>View/Edit WiFi/Network Setup</a>\n";
+        message += "<li><a href='/plist'>View/Edit 900x Radio Parameters</a>\n";
+        message += "<li><a href='/updatepage'>Update Firmware</a>\n";
+        message += "<li><a href='/reboot'>Reboot</a>\n";
+        message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
+        message += "</ul>\n";
+        message += "<hr>\n";
+        message += "<h2>Documentation</h2>\n";
+        message += "(requires internet access)<br>\n";
+        message += "<ul>\n";
+        message += "<li><a href='http://ardupilot.org'>ArduPilot Website</a>\n";
+        message += "<li><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP8266 WiFi Documentation</a>\n";
+        message += "<li><a href='https://github.com/RFDesign/mavesp8266'>RFDesign ESP8266 Source Code</a>\n";
+        message += "<li><a href='http://files.rfdesign.com.au/firmware/'>RFDesign TXMOD Firmware Updates</a>\n";
+        message += "</ul>\n";
+        message += "</body></html>";
 
-    message += "</ul>\n";
-    message += "</body></html>";
-
+        setNoCacheHeaders();
+        webServer.send(200, FPSTR(kTEXTHTML), message);
     }
-    setNoCacheHeaders();
-    webServer.send(200, FPSTR(kTEXTHTML), message);
-}
 
-//---------------------------------------------------------------------------------
-static void handle_update_html()
-{
-    String message = "oops, sory, try rebooting.";
-    // if we have an index.html in spiffs, use that, otherwise use a basic version that's included below.
-    File f = SPIFFS.open("/update.htm", "r");
-    if ( f ) { 
-            message = f.readString();
-    } else {  // in the event that update.htm is missing, give enough so we can upload a spiffs.bin and make one:
-
-        message =  FPSTR(kHEADER);
-        message += "Please upload a spiffs.bin to continue: \n";
-        message += "<form method='POST' action='/update' enctype='multipart/form-data'>\n";
-        message += "Spiffs:<br>\n";
-        message += "<input type='file' name='spiffs'>\n";
-        message += "<input type='submit' value='Update SPIFFS'>\n";
-        message += "</form>\n";
-
-    }
-    //setNoCacheHeaders();
-    webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
 
@@ -411,7 +485,21 @@ static void handle_getStatus()
     linkStatus* gcsStatus = getWorld()->getGCS()->getStatus();
     linkStatus* vehicleStatus = getWorld()->getVehicle()->getStatus();
     String message = FPSTR(kHEADER);
+
+extern bool tcp_passthrumode;
+
+    if ( tcp_passthrumode == false ) { 
+    message += "<font color=green>Device is currently In UDP(mavlink) mode right now.</font><br>\n";
+    } else { 
+    message += "<font color=red>NOT In UDP(mavlink) mode right now</font><br>\n";
+    }
+
     message += "<p>Comm Status</p><table><tr><td width=\"240\">Packets Received from GCS</td><td>";
+
+    message += "<font color=green>To connect your GCS in UDP(mavlink) mode, please open a UDP port on port number:";
+    message += getWorld()->getParameters()->getWifiUdpHport();
+    message += "</font><br></p>\n";
+
     message += gcsStatus->packets_received;
     message += "</td></tr><tr><td>Packets Sent to GCS</td><td>";
     message += gcsStatus->packets_sent;
@@ -474,7 +562,7 @@ extern bool tcp_passthrumode;
     message += "<font color=red>NOT In TCP pass-through mode right now</font><br>\n";
     }
 
-    message += "<font color=green>To connect your GCS in TCP mode, please connect as a TCP client to IP: 192.168.4.1, with port number 23.</font><br>\n";
+    message += "<font color=green>To connect your GCS in TCP mode, please connect as a TCP client to IP: 192.168.4.1, with port number 23.</font><br></p>\n";
 
     message += "<table><tr><td width=\"240\">TCP Bytes Received from GCS</td><td>";
     message += stats_tcp_in;
@@ -700,42 +788,7 @@ static void handle_reboot()
     webServer.send(404, FPSTR(kTEXTPLAIN), message);
 } */
 
-#define DBG_OUTPUT_PORT swSer
 
-String getContentType(String filename) {
-  if (webServer.hasArg("download")) {
-    return "application/octet-stream";
-  } else if (filename.endsWith(".htm")) {
-    return "text/html";
-  } else if (filename.endsWith(".html")) {
-    return "text/html";
-  } else if (filename.endsWith(".css")) {
-    return "text/css";
-  } else if (filename.endsWith(".js")) {
-    return "application/javascript";
-  } else if (filename.endsWith(".png")) {
-    return "image/png";
-  } else if (filename.endsWith(".gif")) {
-    return "image/gif";
-  } else if (filename.endsWith(".jpg")) {
-    return "image/jpeg";
-  } else if (filename.endsWith(".ico")) {
-    return "image/x-icon";
-  } else if (filename.endsWith(".xml")) {
-    return "text/xml";
-  } else if (filename.endsWith(".pdf")) {
-    return "application/x-pdf";
-  } else if (filename.endsWith(".zip")) {
-    return "application/x-zip";
-  } else if (filename.endsWith(".gz")) {
-    return "application/x-gzip";
-  } else if (filename.endsWith(".txt")) {
-    return "text/plain";
-  } else if (filename.endsWith(".json")) {
-    return "application/json";
-  }
-  return "text/plain";
-}
 
 
 extern bool r900x_saveparams(String file); // its in main.cpp
@@ -754,25 +807,44 @@ void save900xparams() {
 } 
 */
 
-// by storing all the big files ( especially javascript ) in SPIFFS as .gz, we can save a bunch of space easily.
-// but this can present either form to the user
-bool handleFileRead(String path) {
-  DBG_OUTPUT_PORT.println("handleFileRead: " + path);
-  if (path.endsWith("/")) {
-    path += "index.htm";
-  }
-  String contentType = getContentType(path);
-  String pathWithGz = path + ".gz";
-  if (SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)) {
-    if (SPIFFS.exists(pathWithGz)) {
-      path += ".gz";
+
+
+// also getting below 7k or 8k or RAM hurts some form of file download, but not this, aparently:
+// https://github.com/esp8266/Arduino/issues/3205
+
+//TODO we should consider "use PROGMEM and server.send_P to send data from PROGMEM — in this case it doesn't need to be copied to RAM twice, you avoid allocating Strings and all the associated issues"
+
+void send_favicon() { 
+    // stored in PROGMEM due to the 'const':
+    const char favicon[] = {
+      0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x10, 0x00, 0x00, 0x01, 0x00,
+      0x18, 0x00, 0x68, 0x03, 0x00, 0x00
+    }; 
+
+    webServer.send_P(200, "image/x-icon", favicon, sizeof(favicon));
+}
+
+
+
+//---------------------------------------------------------------------------------
+static void handle_update_html()
+{
+
+    // try to render /update.htm as-is, otherwise fallback to this: 
+    if (!handleFileRead("/update.htm")) {
+
+        String message =  FPSTR(kHEADER);
+        message += "Please upload a spiffs.bin to continue: \n";
+        message += "<form method='POST' action='/update' enctype='multipart/form-data'>\n";
+        message += "Spiffs:<br>\n";
+        message += "<input type='file' name='spiffs'>\n";
+        message += "<input type='submit' value='Update SPIFFS'>\n";
+        message += "</form>\n";
+
+        webServer.send(200, FPSTR(kTEXTHTML), message);
+
     }
-    File file = SPIFFS.open(path, "r");
-    webServer.streamFile(file, contentType);
-    file.close();
-    return true;
-  }
-  return false;
+
 }
 
 void handleFileUpload() {
@@ -789,6 +861,14 @@ void handleFileUpload() {
       filename = "/" + filename;
     }
     DBG_OUTPUT_PORT.print("handleFileUpload Name: "); DBG_OUTPUT_PORT.println(filename);
+
+    // if its a firmware .bin file we are about to upload, remove the .in.ok first
+    // .. as in a small 2M SPIFFS we really don't have room for more than 1 of these
+    if (filename == BOOTLOADERNAME ) { 
+        SPIFFS.remove(BOOTLOADERNAME); // cleanup incase an old one is still there. 
+        SPIFFS.remove(BOOTLOADERCOMPLETE); // cleanup incase an old one is still there. 
+    }
+
     fsUploadFile = SPIFFS.open(filename, "w");
     filename = String();
   } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -860,10 +940,13 @@ void handle900xParamRefresh() {
 
     //todo would this be better sent as json ? 
     //var mydata = JSON.parse(data);
-    type = "handle900xParamRefresh() executed. type:"+type+" num_read:"+num_read;
+    //type = "handle900xParamRefresh() executed. type:"+type+" num_read:"+num_read;
+    type = "{ \"request\":\"paramrefresh\", \"type\":\""+type+"\", \"num_read\":"+num_read+"}"; // valid json to browser
+
+    //webServer.send(200, "text/plain", type );
+     webServer.send(200, "application/json", type ); 
 
 
-    webServer.send(200, "text/plain", type );
 
 } 
 
@@ -975,7 +1058,7 @@ void handle900xParamSave() {
             message += "and 900x radio params activated to modem OK. ";
             retval = 201;
         } else { 
-            message += "and 900x radio params activate FAILED. Does file /r900x_params.txt exist? ";
+            message += "and 900x radio params activate FAILED. Does file "+filename+" exist? ";
             retval = 202;
         }
     
