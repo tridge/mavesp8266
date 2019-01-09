@@ -960,11 +960,21 @@ void setup() {
     //-- Boost power to Max
     WiFi.setOutputPower(20.5);
 
-    //-- MDNS
-    char mdsnName[256];
-    sprintf(mdsnName, "MavEsp8266-%d",localIP[3]);
-    MDNS.begin(mdsnName);
-    MDNS.addService("http", "tcp", 80);
+
+
+
+    int retries = 5;
+    while ( retries > 0) { 
+       bool success = MDNS.begin(mdnsName);
+       if ( success ) { retries = 0; } 
+       else { 
+        Serial.println("Error setting up MDNS responder!");
+        delay(1000);
+        retries --;
+       }
+    }
+    MDNS.addService("_http", "_tcp", 80);    
+    //MDNS.addService("tcp", "tcp", 23);
 
 
     #ifdef PROTOCOL_TCP
@@ -1151,4 +1161,7 @@ void loop() {
 
     }
     updateServer.checkUpdates(); // aka webserver.handleClient()
+
+
+  MDNS.update();
 }
