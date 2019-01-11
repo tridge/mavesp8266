@@ -1,9 +1,10 @@
-<html>
-<head>
+<!doctype html><html><head><title>RFDesign TXMOD</title><link href='/s.css' rel='stylesheet'>
 <script src="p.js"></script>
 </head>
-<body>
-<h1><a href='/'>RFDesign TXMOD</a></h1>
+
+<body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>
+
+<h2 id=mymsg>&nbsp;</h2>
 <table><tr><td>
 <table id=local>
 <th>LOCAL RADIO (ATI5)</th>
@@ -16,12 +17,15 @@
 </table>
 </td></tr>
 </table>
-<input type='submit' id='fresh' value='Load Fresh Params' onclick="reload_fresh_params(); return false;" >
+<p>
+<input type='submit' id='fresh' value='Load Fresh Params' onclick="reload_fresh_params(); return false;" ><br>
+[CAUTION: If your remote params list does not show, press this again. You must be sure you have a remote radio synced. ( ie both radios solid green LED )
+<p>
 <input type='submit' id='sub' value='Save Params' onclick="saveforms(); return false;" ><br>
 [CAUTION - saving the incorrect settings here may result in loss of conenction between the radios]
-<div id=doit></div><br>
-<hr>
-<input type='submit' id='sub' value='Factory Default' onclick="factory(); return false;" ><br>[CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXMOD]<br>
+<p>
+<input type='submit' id='sub' value='Factory Default' onclick="factory(); return false;" ><br>
+[CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXMOD]<br>
 </body>
 </html>
 

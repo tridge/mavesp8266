@@ -55,7 +55,8 @@ const char PROGMEM kTEXTHTML[]   = "text/html";
 const char PROGMEM kACCESSCTL[]  = "Access-Control-Allow-Origin";
 
 const char PROGMEM kUPLOADFORM[] = "";
-const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>RFDesign TXMOD</title></head><body><h1><a href='/'>RFDesign TXMOD</a></h1>";
+const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>RFDesign TXMOD</title><link href='/s.css' rel='stylesheet'></head><body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>";
+
 const char PROGMEM kBADARG[]     = "BAD ARGS";
 const char PROGMEM kAPPJSON[]    = "application/json";
 
@@ -377,7 +378,7 @@ extern String mac_ap_s;
         message += "<li><a href='https://github.com/RFDesign/mavesp8266'>RFDesign ESP8266 Source Code</a>\n";
         message += "<li><a href='http://files.rfdesign.com.au/firmware/'>RFDesign TXMOD Firmware Updates</a>\n";
         message += "</ul>\n";
-        message += "</body></html>";
+        message += "</div></body></html>";
 
         setNoCacheHeaders();
         webServer.send(200, FPSTR(kTEXTHTML), message);
