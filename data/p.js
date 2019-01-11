@@ -28,6 +28,11 @@ function saveforms() {
     }
 }
 
+function display_message(mymsg) { 
+    x = document.getElementById("mymsg");
+    x.innerHTML = "<font color=orange>&nbsp;"+mymsg+"</font>";
+}
+
 function saveform(tableid, tourl) {
 
   var xhttp = new XMLHttpRequest();
@@ -81,25 +86,39 @@ function saveform(tableid, tourl) {
 onReady(function() { loadforms(); } );
 
 function loadforms( ) {
-loadform( "local", "/r900x_params.txt" );
-loadform( "remote", "/r900x_params_remote.txt" );
+    loadform( "local", "/r900x_params.txt" );
+    loadform( "remote", "/r900x_params_remote.txt" );
 }
 
 function reload_fresh_params() { 
-  unloadform();
-  document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload )";
-  reload_fresh("http://192.168.4.1/prefresh?type=remote",false);
-  reload_fresh("http://192.168.4.1/prefresh?type=local",false);
-  document.getElementById("fresh").value = "Load Fresh Params";
+
+    //document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload )";
+
+    display_message("Talking With Radio/s, please wait...");
+
+    unloadform('remote');
+    reload_fresh("http://192.168.4.1/prefresh?type=remote",false);
+
+    loadform( "remote", "/r900x_params_remote.txt" );
+
+    unloadform('local');
+    reload_fresh("http://192.168.4.1/prefresh?type=local",false);
+    loadform( "local", "/r900x_params.txt" );
+
+    document.getElementById("fresh").value = "Load Fresh Params";
+
+    //display_message("");
+
 } 
 
 // same as a reload_fresh_params(), but with an additional factory=yes, which behind the curtain adds an AT&W and AT&F etc 
 // just before reading fresh params from the radio.
 function factory() { 
-  unloadform();
+  unloadforms();
   document.getElementById("fresh").value = "Talking With Radio/s, please wait...( page will reload ) - ALSO Factory resetting.";
   reload_fresh("http://192.168.4.1/prefresh?type=remote&factory=yes",false);
   reload_fresh("http://192.168.4.1/prefresh?type=local&factory=yes",false);
+  loadforms();
   document.getElementById("fresh").value = "Load Fresh Params";
 } 
 
@@ -135,14 +154,19 @@ function reload_fresh(url,reload) {
   xhttp.send();
 
 } 
+
+function unloadforms(){
+     unloadform('remote');
+     unloadform('local');
+}
 function unloadform(tableid){ 
 
     var table = document.getElementById(tableid);
     if ( tableid == 'local' ) {
-    myNode.innerHTML = '<th>REMOTE RADIO (RTI5)</th>';
+    table.innerHTML = '<th>LOCAL RADIO (ATI5)</th>';
     }
     if ( tableid == 'remote' ) {
-    myNode.innerHTML = '<th>LOCAL RADIO (ATI5)</th>';
+    table.innerHTML = '<th>REMOTE RADIO (RTI5)</th>';
     }
 } 
 
@@ -195,6 +219,9 @@ function loadform( tableid, fromurl ) {
 
         }
 
+        display_message("");
+        if ( tableid == "local" ) { local_available = true; }
+        if ( tableid == "remote") { remote_available = true; }
     }
     if (this.readyState == 4 && this.status == 404) {
 
