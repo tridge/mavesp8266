@@ -298,7 +298,7 @@ bool handleFileRead(String path) {
 static void handle_root()
 {
 
-    File cache = SPIFFS.open("/index.cache", "w");
+    File cache = SPIFFS.open("/index.cache.htm", "w");
 
     String message = FPSTR(kHEADER);
     message += "TXMOD Software Version: RFD-";
@@ -342,8 +342,8 @@ extern String mac_ap_s;
 
     // if we have an index.html in spiffs, build a cahce based on that, otherwise use a basic version that's included below.
     // CAUTION: this cache to spiffs is becasue of a breakdown if the resulting index.htm we send is more than abut 6k in size
-    // but could be made to work on bigger files if we write the above to spiffs as (say) index.cache, then 
-    //sent the result with handleFileRead("/index.cache"). 
+    // but could be made to work on bigger files if we write the above to spiffs as (say) index.cache.htm, then 
+    //sent the result with handleFileRead("/index.cache.htm"). 
     File f = SPIFFS.open("/index.htm", "r");
     if ( f ) { 
         message += f.readString();
@@ -353,11 +353,11 @@ extern String mac_ap_s;
     cache.print(message); 
     message = "";
 
-    cache.close(); // close index.cache
+    cache.close(); // close index.cache.htm
 
  
     // try to render /index.cache as-is, otherwise fallback to this more minimal static version... 
-    if (!handleFileRead("/index.cache")) {
+    if (!handleFileRead("/index.cache.htm")) {
     
         String message = FPSTR(kHEADER);
         message += "<ul>\n";
