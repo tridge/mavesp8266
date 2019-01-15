@@ -697,6 +697,130 @@ void handle_getJSysStatus()
     webServer.send(200, "application/json", message);
 }
 
+
+
+// see main.cpp
+extern int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL); 
+
+//---------------------------------------------------------------------------------
+// for /wiz url
+void handle_wiz_save() // accept updated param/s via POST, save them, then display standard 'edit' form with new data.
+{
+    if(webServer.args() == 0) {
+        // no args, just return 200/ok
+        webServer.send(200, FPSTR(kTEXTHTML), "ok");
+        return;
+    }
+    bool ok = false;
+
+    //localC: 148
+    //localE: d81eaaa5c263080
+    //localPPMin: 1
+    //remotePPMOUT: 1
+    //remoteDefaultPPM: 1
+    //confirmtest: Yes
+
+    //String message = "";  // ultimately will be output to user
+    String message = FPSTR(kHEADER);
+
+    int page = -1;
+    if(webServer.hasArg("page")) {
+        //ok = true;
+        page = webServer.arg("page").toInt();
+    }
+    if(page == 0) { // page=0 called on the first-load of the first page in the wizard, before any user input, so we do nothing here but succeed
+        ok = true;
+    }
+    if(page == 1) { // page=1 called on the 'Next' from the first page, where we actually input nothing, so we do nothing here but succeed
+        ok = true;
+    }    
+    if((page == 2) && webServer.hasArg("localC")) {
+        //ok = true;
+        int w1 = webServer.arg("localC").toInt();
+        
+        // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
+        int retval = r900x_savesingle_param_and_verify("RT", "S3", String(w1));
+        int retval2 = 0;
+        if ( retval > 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
+           retval2 = r900x_savesingle_param_and_verify("AT", "S3", String(w1));
+           // if it failed, retry, because the remote already succeeded and the local should too.
+           if ( retval2 < 0 ) { 
+            retval2 = r900x_savesingle_param_and_verify("AT", "S3", String(w1));
+           }
+           if ( retval2 > 0 ) { 
+              ok = true;   // only if the remote AND local params save/verify correctly do we believe it.
+            }
+        }
+        swSer.println("A");
+        if ( ! ok ) { 
+
+            // saving to remote failed, do we need to advise of that ?         
+            if ( retval < 0 ) {
+                swSer.println("B");
+                message = "FAIL param saving to REMOTE 900x radio. RT S3->"+String(w1);
+                setNoCacheHeaders();
+                webServer.send(201, FPSTR(kTEXTHTML), message);
+                return;
+            }
+            // saving to local failed, do we need to advise of that ?         
+            if ( retval2 < 0 ) {
+                swSer.println("C");
+                message = "FAIL param saving to LOCAL 900x radio  AT S3->"+String(w1);
+                setNoCacheHeaders();
+                webServer.send(202, FPSTR(kTEXTHTML), message);
+                return;
+            }
+
+        }   
+        message = "SUCCESS param saving to REMOTE & LOCAL 900x radio. AT S3->"+String(w1);
+        swSer.println("E");
+        setNoCacheHeaders();
+        swSer.println(message);
+        webServer.send(200, FPSTR(kTEXTHTML), message);
+        return;
+    }
+    if((page == 3) && webServer.hasArg("localE")) {
+        ok = true;
+        String w2 = webServer.arg("localE").c_str();
+    }
+    // two on same page (4):
+    if((page == 4) && webServer.hasArg("localPPMin")) {
+        ok = true;
+        int w3 = webServer.arg("localPPMin").toInt();
+    }
+    if((page == 4) && webServer.hasArg("remotePPMOUT")) {
+        ok = true;
+        int w4 = webServer.arg("remoteDefaultPPM").toInt();
+    }
+    if((page == 5) && webServer.hasArg("remoteDefaultPPM")) {
+        ok = true;
+        int w5 = webServer.arg("remoteDefaultPPM").toInt();
+    }
+    if((page == 6) && webServer.hasArg("confirmtest")) {
+        ok = true;
+        String w6 = webServer.arg("confirmtest").c_str();
+    }
+
+    // the actual final form submit doesn't know its page number, but should succeed as it has all other data.
+    if(page == -1) {  
+        ok = true;    
+    }  
+
+    swSer.println("D");
+
+
+    if(ok) {
+    message += "<font color=green>WIZARD page SETTINGS are Saved to EEPROM!</font>";
+    }
+    swSer.println("E");
+    setNoCacheHeaders();
+    swSer.println(message);
+    webServer.send(200, FPSTR(kTEXTHTML), message);
+    //} else {
+    //    returnFail(kBADARG);
+    //}
+}
+
 //---------------------------------------------------------------------------------
 void handle_setParameters() // accept updated param/s via POST, save them, then display standard 'edit' form with new data.
 {
@@ -1120,6 +1244,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
 
     webServer.on("/updatepage",       handle_update_html); // presents a webpage that then might upload a binary to the /upload endpoint via POST
 
+    webServer.on("/wiz", handle_wiz_save); 
 
 //    webServer.on("/save900xparams",         save900xparams); // see /psave
 
@@ -1177,6 +1302,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     //const char* webupdatehost = "esp8266-webupdate";
 
     //MDNS.begin(webupdatehost);
+
 
     httpUpdater.setup(&webServer);
 
