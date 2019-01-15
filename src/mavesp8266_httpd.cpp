@@ -335,10 +335,27 @@ extern String mac_ap_s;
         message += v.readString();
         v.close();
     }
+    message += "<br>\n";
+
+extern String realSize;
+
+    if ( realSize == "4194304" ) { 
+        message += "Your Flash-Size is 4M.<p>\n";
+    }
+
+    if ( realSize == "2097152" ) { 
+        message += "Your Flash-Size is 2M.<p>\n";
+    }
+    if (( realSize != "2097152" ) && ( realSize != "4194304" )) { 
+        message += "Your Flash Size is weird.  It's not 2Meg or 4Meg. Reported Size: "+realSize+"<p>\n";
+    }
+
     message += "<p>\n";
 
     cache.print(message); 
     message = "";
+
+
 
     // if we have an index.html in spiffs, build a cahce based on that, otherwise use a basic version that's included below.
     // CAUTION: this cache to spiffs is becasue of a breakdown if the resulting index.htm we send is more than abut 6k in size

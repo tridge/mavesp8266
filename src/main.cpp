@@ -219,15 +219,19 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
    int chances = 0;
    retry:
+
+        //TODO rather than always wait 1500 for the possible results of a +++, we could do an ATI first and skipp the +++ 
+        // if we are already in command mode.
+
         Serial.write("\r");
         Serial.flush(); // output buffer flush
-        delay(1500); 
+        delay(1100); 
         Serial.write("+++");
         Serial.flush(); // output buffer flush
         LEDState = !LEDState;
         digitalWrite(LEDGPIO,LEDState);
         //bool ok = SmartSerial->expect("OK",1000); 
-        int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",500); // look for 'ok' or '+++'
+        int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",1100); // look for 'ok' or '+++'
 
         if ( ok2 == 1 ) { 
             swSer.println(F("GOT OK Response from radio.\n"));
@@ -270,7 +274,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
             Serial.write(factorycmd.c_str());
             Serial.flush(); // output buffer flush
             //swSer.print(F("----------------------------------------------"));
-            bool b = SmartSerial->expect("OK",3000); b = !b; // avoid compiler warnings only.
+            bool b = SmartSerial->expect("OK",500); b = !b; // avoid compiler warnings only.
             while (Serial.available() ) { Serial.read();  } // flush read buffer upto this point and discard
             swSer.print(F("...attempted factory reset.\n"));
         }
@@ -282,7 +286,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         Serial.write(cmd.c_str());
         Serial.flush(); // output buffer flush
         swSer.print(F("----------------------------------------------"));
-        String data = SmartSerial->expect_s("SIS_RSSI=50\r\n",3000); 
+        String data = SmartSerial->expect_s("SIS_RSSI=50\r\n",500); 
         while (Serial.available() ) { char t = Serial.read();  data += t; } // flush read buffer upto this point.
         swSer.print(data);
         swSer.print(F("----------------------------------------------"));
@@ -307,17 +311,176 @@ int r900x_getparams(String filename, bool factory_reset_first) {
             swSer.println(F("didn't write param file, as it contained insufficient data"));
         }
 
-        delay(1000); // time for local and remote to sync and RT values to populate.
+        if ( factory_reset_first ) { 
 
-        cmd = prefix+"&Z\r";
-        Serial.write(cmd.c_str()); // reboot radio to restore non-command mode.
-        Serial.flush(); // output buffer flush
-        delay(200); 
+            delay(1000); // time for local and remote to sync and RT values to populate.
+
+            swSer.println(F("ATZ/RTZ renooting 900x due to factory_reset_first "));
+            cmd = prefix+"Z\r";
+            Serial.write(cmd.c_str()); // reboot radio to restore non-command mode.
+            Serial.flush(); // output buffer flush
+            delay(200); 
+        }
 
         swSer.println(F("r900x_getparams()- END\n"));
 
      return linecount;
 } 
+
+
+
+
+//-------------------------------------------
+// returns negative numbers on error, and positive number on success
+int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL) { 
+
+swSer.println(F("r900x_savesingle_param_and_verify"));
+
+//     String prefix = "AT";  or RT
+//        String ParamID = line.substring(0,colon_offset); // S4
+//        String ParamNAME = line.substring(colon_offset+1,equals_offset); // TXPOWER
+//        String ParamVAL = line.substring(equals_offset+1,eol_offset);  // 30
+
+    // to make it potentially faster for the majority of cases where the radio is *still* in 
+    // command-mode, we could quickly try an 'ATI' and if we get an echo back along with the 
+    // version info, were already in command mode and don't have to wait a whone second to 
+    // find out.
+    //ATI
+    //RFD SiK 2.65 on RFD900X R1.3
+
+    Serial.write("\r\nATI\r\n");
+    Serial.flush(); // output buffer flush
+
+    int already_commmand_mode_test = SmartSerial->expect_multi3("ATI","RFD SiK","RFD900X",50); // look for any of these
+
+    while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+
+    if (  already_commmand_mode_test <= 0 ) {  // no match on the above 3 strings means ...
+
+        // put it into command mode first....
+        Serial.write("\r");
+        delay(1000); 
+        Serial.write("+++");
+        Serial.flush(); // output buffer flush
+
+        int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",1100); // look for +++ takes 50ms, OK might take 1000 ?
+        if ( ok2 == 1 ) { 
+            swSer.println(F("GOT OK Response from radio.\n"));
+            while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+        }
+        else if ( ok2 == 2 ) { 
+            // if modem echo's back the +++ we sent it, we are already in command mode.
+            swSer.println(F("radio is already_in_cmd_mode2, continuing... sending RN.\n"));
+            Serial.write("\r\n"); // terminate the +++ command.
+            Serial.flush(); // output buffer flush
+            //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+            goto already_in_cmd_mode2;
+        } else { 
+            swSer.println(F("FALED-TO-GET 'OK' or '+++' Response from radio."));
+            swSer.println(F("RETURN:no cmd-mode modem coms")); 
+            return -1;  
+        } 
+
+    }
+    
+    already_in_cmd_mode2:
+    swSer.println(F("-------flush---------------"));
+
+    //  read individial param first  ( eg ATS4? ) to see if it even needs changing
+    String cmd = prefix+ParamID+"?\r\n"; // first \r\n is to end the +++ command we did above, if any.
+
+    swSer.println(cmd); // debug only
+
+
+    // here we neter a "retries" loop for approx 100ms each iteration and maxloops 5
+    // because it's proven in testing that the RTS3?   and similar style commands don't 
+    // work first-go , perhaps 2nd go? 
+    // also, this doesn't work if the remote radio isn't there and it's a RT command
+    String data = "";
+    String data3 = "";
+        int max = 0;
+    while (( data.length() < 10 ) && (max < 5 ) && ( data3.length() <= 2 ) )  { 
+        Serial.write(cmd.c_str());
+        Serial.flush(); // output buffer flush
+        data = SmartSerial->expect_s(cmd,55);  // this should capture the echo of the RTS3?
+        data3 = SmartSerial->expect_s("\r\n",80);  // this should capture the line after and its contents
+        swSer.println(F("^^^^^^^^^^^^^^^^^^^"));
+        swSer.println(max);
+        max++;
+    }
+
+    if (data3.length() <= 2 ) { swSer.println(F("RETURN:existing val cant be read")); return -4;  } // if we didn't get a number and \r and \n, then give up.    
+
+    //here  - decide if param valus is already set right, and if so, return OK status as it's verified! 
+    // data3 contains the stored value for the ParamID in the prefix-type radio., with newlines and as a string.
+    int value = data3.toInt(); 
+
+    swSer.println(data);
+    swSer.println(value);
+    
+    if (value == ParamVAL.toInt() ) { swSer.println(F("RETURN:val already set")); return 1;  } // success, it's already set at that target val    
+    
+
+    int param_write_counter = 0;
+    param_write_retries:
+
+    swSer.println(F("5#############################################################"));
+    // set param to new vaue
+    String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
+
+    swSer.println(ParamCMD); // debug only.
+    Serial.write(ParamCMD.c_str());
+    Serial.flush(); // output buffer flush
+    swSer.println(F("6#############################################################"));
+    bool ok = SmartSerial->expect("OK",250);  // needs to be bigger than 200.
+    swSer.println(F("7#############################################################"));
+    if ( ok ) { 
+        swSer.println(F("GOT OK from radio.\n"));
+        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+    } else { 
+
+        swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+        param_write_counter++;
+        if ( param_write_counter < 5 ) { 
+            goto param_write_retries;
+        }
+
+        // if 5 retries exceeded, return error.
+        swSer.println(F("RETURN:no response to param set request - 5 retries exceeded")); 
+        return -2; // neg number/s mean error
+    } 
+
+    // save params AND take out of command mode via a quick reboot
+    String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
+    Serial.write(savecmd.c_str());
+    Serial.flush(); // output buffer flush
+
+   // LEDState = 0;
+   // digitalWrite(LEDGPIO,LEDState);
+    ok = SmartSerial->expect("OK",200); 
+    if ( ok ) { 
+        swSer.println(F("GOT OK Response from radio.\n"));
+        //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+
+        // save params AND take out of command mode via a quick reboot
+        String rebootcmd = prefix+"Z\r\n"; // "ATZ\r\n"
+        Serial.write(rebootcmd.c_str());
+        Serial.flush(); // output buffer flush
+
+        delay(150);
+        // TODO ? ok = SmartSerial->expect("RTZ",200);
+        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point. - ie 'RTZ' response
+
+    } else { 
+        swSer.println(F("FALED-TO-GET OK Response from radio.\n"));
+        swSer.println(F("RETURN:no response to param write"));
+        return -3;
+    } 
+
+    swSer.println(F("RETURN:PERFECT"));
+    return 2;
+}
+//-------------------------------------------
 
 
 bool r900x_saveparams(String filename) { 
@@ -331,7 +494,8 @@ swSer.println(F("r900x_saveparams()\n"));
     Serial.write("+++");
     Serial.flush(); // output buffer flush
 
-    bool ok = SmartSerial->expect("OK",2000); 
+/*
+    bool ok = SmartSerial->expect("OK",1100);  // never more than about 1000 to get an OK at this poiunt
     if ( ok ) { 
         swSer.println(F("GOT OK Response from radio.\n"));
         while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
@@ -340,7 +504,25 @@ swSer.println(F("r900x_saveparams()\n"));
         swSer.println(F("FALED-TO-GET OK Response from radio, might already be in command mode....\n"));
         //return false;
     } 
+*/
 
+    int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",1100); // look for 'ok' or '+++'
+
+    if ( ok2 == 1 ) { 
+        swSer.println(F("GOT OK Response from radio.\n"));
+        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+    }
+    else if ( ok2 == 2 ) { 
+        // if modem echo's back the +++ we sent it, we are already in command mode.
+        swSer.println(F("radio is already_in_cmd_mode, continuing...\n"));
+        Serial.write("\r\n");
+        Serial.flush();
+        goto already_in_cmd_mode4;
+    } else { 
+        swSer.print(F("FALED-TO-GET OK Response from radio. chance:"));
+    } 
+
+    already_in_cmd_mode4:
 
     String localfilename = "/r900x_params.txt";
     String remotefilename = "/r900x_params_remote.txt";
@@ -393,21 +575,40 @@ swSer.println(F("r900x_saveparams()\n"));
         String ParamNAME = line.substring(colon_offset+1,equals_offset);
         String ParamVAL = line.substring(equals_offset+1,eol_offset); 
 
+        // if its an ATS2 or RTS0 command, skipp it, as we don't allows writes to S0
+        if ( ParamID == "S0" ) { 
+            swSer.println(F("skipping S0, as we don't write it."));
+            continue; 
+        }
+
         
         String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
+
+        // TODO implement retries on ths for if we didn't get a response to the command in-time..? 
 
         swSer.println(ParamCMD); // debug only.
         Serial.write(ParamCMD.c_str());
         Serial.flush(); // output buffer flush
-        bool ok = SmartSerial->expect("OK",1000); 
+        bool ok = SmartSerial->expect("OK",200); // typically we get a remote response in under 150ms, local response under 30
         if ( ok ) { 
             swSer.println(F("GOT OK from radio.\n"));
             while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
         } else { 
-            //trying = false; HACK
-            swSer.println(F("FALED-TO-GET OK Response from radio.\n"));
-            failurecount++;
-            if ( failurecount > 2 ) return false; // in the event that we don't have modem, this fails it faster
+
+            swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+
+                    // 1 retry for in-case it was just transitional...
+                    swSer.println(ParamCMD); // debug only.
+                    Serial.write(ParamCMD.c_str());
+                    Serial.flush(); // output buffer flush
+                    bool retryok = SmartSerial->expect("OK",200);
+                    if ( ! retryok ) { 
+                       failurecount++;
+                        if ( failurecount > 4 ) { 
+                            swSer.println(F("exceeded max failure count of 4, failed.")); // debug only.
+                            return false; // in the event that we don't have modem, this fails it faster
+                        }
+                    }
         } 
         
         done++;
@@ -417,18 +618,29 @@ swSer.println(F("r900x_saveparams()\n"));
     // jump here when done writing parms:
    save:
 
-   // save params AND take out of command mode via a quick reboot
-    String rebootcmd = prefix+"&W\r\n"+prefix+"&Z\r\n"; // "AT&W\r\nAT&Z\r\n"
-    Serial.write(rebootcmd.c_str());
+   // save params AND maybe take out of command mode via a quick reboot
+    String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
+    Serial.write(savecmd.c_str());
     Serial.flush(); // output buffer flush
 
     LEDState = 0;
     digitalWrite(LEDGPIO,LEDState);
 
-    ok = SmartSerial->expect("OK",2000); 
+    bool ok = SmartSerial->expect("OK",2000); 
     if ( ok ) { 
         swSer.println(F("GOT OK Response from radio.\n"));
-        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+        //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+
+          // take out of command mode via a quick reboot
+            String rebootcmd = prefix+"Z\r\n"; // "ATZ\r\n"
+            Serial.write(rebootcmd.c_str());
+            Serial.flush(); // output buffer flush
+
+            LEDState = 0;
+            digitalWrite(LEDGPIO,LEDState);
+
+            //delay(200); 
+            //ok = SmartSerial->expect("OK",2000);  we don't expect a response from ATZ or RTZ
     } else { 
         //trying = false; HACK
         swSer.println(F("FALED-TO-GET OK Response from radio, no biggie, reboot expected.\n"));
@@ -448,7 +660,7 @@ bool r900x_command_mode_sync() {
         Serial.write("+++");
         Serial.flush(); // output buffer flush
 
-        bool ok = SmartSerial->expect("OK",2000); 
+     /*   bool ok = SmartSerial->expect("OK",2000); 
         if ( ok ) { 
             swSer.println(F("GOT OK Response from radio.\n"));
             while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
@@ -456,6 +668,26 @@ bool r900x_command_mode_sync() {
             //trying = false; HACK
             swSer.println(F("FALED-TO-GET OK Response from radio.\n"));
         } 
+
+*/
+        int ok2 = SmartSerial->expect_multi3("OK","+++","XXXXX",1100); // look for 'ok' or '+++'
+
+        if ( ok2 == 1 ) { 
+            swSer.println(F("GOT OK Response from radio.\n"));
+            while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+        }
+        else if ( ok2 == 2 ) { 
+            // if modem echo's back the +++ we sent it, we are already in command mode.
+            swSer.println(F("radio is already_in_cmd_mode, continuing...\n"));
+            Serial.write("\r\n");
+            Serial.flush();
+            goto already_in_cmd_mode3;
+        } else { 
+            swSer.print(F("FALED-TO-GET OK Response from radio. chance:"));
+        } 
+
+
+        already_in_cmd_mode3:
 
         // we try the ATI style commands up to 2 times to get a 'sync' if needed. ( was 5, but 2 is faster )
         for (int i=0; i < 2; i++) {
@@ -618,6 +850,28 @@ retrypoint:
 
         LEDState = !LEDState;
         digitalWrite(LEDGPIO,LEDState);
+
+        //TODO - can we do Hardware flow control? 
+        // https://www.esp8266.com/viewtopic.php?f=27&t=8560
+        // maybe not with the arduino IDE, but maybe yes with the espressif SDK...? 
+
+        // possible impl:
+        // const int CTSPin = 13; // GPIO13 for CTS input
+        // pinMode(CTSPin, FUNCTION_4); // make pin U0CTS
+        // U0C0 |= UCTXHFE; //add this sentense to add a tx flow control via MTCK( CTS )
+
+        // other notes:
+        // SET_PERI_REG_MASK( UART_CONF0(uart_no),UART_TX_FLOW_EN); //add this sentense to add a tx flow control via MTCK( CTS )
+        // or U0C0 |= UCTXHFE; //add this sentense to add a tx flow control via MTCK( CTS )
+        // https://github.com/esp8266/Arduino/blob/master/cores/esp8266/esp8266_peri.h#L189
+        //
+        //As for the GPIOs, when flow control is enabled:
+        //GPIO13	= U0CTS
+        //GPIO15	= U0RTS
+        // this last link uses the RTOS SDK, not the arduino one, so isn't 100% accurate...
+        // http://forgetfullbrain.blogspot.com/2015/08/uart-sending-and-receiving-data-using.html
+
+
 
         swSer.println("Serial.begin(57600);");
         Serial.begin(57600);
@@ -831,9 +1085,10 @@ String half_mac2String(byte ar[]){
   return s;
 }
 
-// global
+// globals
 String mac_s;
 String mac_ap_s;
+String realSize;
 
 //---------------------------------------------------------------------------------
 //-- Set things up
@@ -877,10 +1132,11 @@ void setup() {
     SoftLogger.begin(2048);
 
     // make sure programmed with correct spiffs settings.
-    String realSize = String(ESP.getFlashChipRealSize());
+    realSize = String(ESP.getFlashChipRealSize());
     String ideSize = String(ESP.getFlashChipSize());
     bool flashCorrectlyConfigured = realSize.equals(ideSize);
-    if(!flashCorrectlyConfigured)  swSer.println("flash incorrectly configured,  cannot start, IDE size: " + ideSize + ", real size: " + realSize);
+    if(!flashCorrectlyConfigured)  swSer.println("ERROR!!! flash incorrectly configured,  cannot start.");
+    swSer.println("Flash IDE size: " + ideSize + ", real size: " + realSize);
 
 
 
