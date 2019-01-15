@@ -1,16 +1,23 @@
-<!doctype html><html><head><title>RFDesign TXMOD</title><link href='/s.css' rel='stylesheet'></head>
+<!doctype html><html><head><title>RFDesign TXMOD</title></head>
 
 <body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>
 
 Your Module has TWO microcontrollers in it!<br>
-Please upload a firmware.bin, spiffs.bin or RFDSiK900x.bin  here : 
+
 <input type='file' name='spiffs' style="display:none" id="upload-spiffs" />
 <input type='file' name='update' style="display:none" id="upload-firmware" /><br>
 <input type='file' name='update' style="display:none" id="upload-rfdsik" /><br>
-<button id="choose-spiffs">Choose 'spiffs.bin'</button> or something like 'RFDTxMod-V1.30.spiffs.bin' <br>
-<button id="choose-firmware">Choose 'firmware.bin'</button> or something like 'RFDTxMod-V1.30.bin'<br>
-<button id="choose-rfdsik">Choose 'RFDSiK900x.bin'</button> or something like 'RFDSiK V2.65 rfd900x.bin'<br>
+For Full System update: <div class='pale'>( Please do both, but only one of these at a time)</div><br>
+Step 1:<button id="choose-firmware">Choose 'firmware.bin'</button> or something like 'RFDTxMod-V1.30.bin' <div class='pale'>( this flashes to the txmod )</div><br>
+Step 2:<button id="choose-spiffs">Choose 'spiffs.bin'</button> or something like 'RFDTxMod-V1.30.spiffs.bin' <div class='pale'>(includes a standard RFDSiK900x.bin)</div><br>
+<br>
+To Just update the firmware in your 900x Radio:<br>
+Optional:<button id="choose-rfdsik">Choose 'RFDSiK900x.bin'</button> or something like 'RFDSiK V2.65 rfd900x.bin'<br>
+
+<hr>
+Upload Progress:
 <progress value="0" max="100" id="progressBar"></progress><br>
+<hr>
 <script>
 // Show the file browse dialog
 document.querySelector('#choose-spiffs').addEventListener('click', function() {
@@ -55,9 +62,9 @@ function change_detector() {
 		return;
 	}
 
-	// Max 2 Mb allowed
-	if(file.size > 2*1024*1024) {
-		alert('Error : Exceeded size 2MB');
+	// Max 4 Mb allowed
+	if(file.size > 4*1024*1024) {
+		alert('Error : Exceeded size 4MB');
 		return;
 	}
 
@@ -160,7 +167,7 @@ function up_file(name, action, file) {
 
 </script>
 
-( Please only do one of these at a time)
+
 
 </body>
 </html>
