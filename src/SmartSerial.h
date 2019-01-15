@@ -33,15 +33,18 @@ public:
     last_ms = millis();
     //bool found = false;
     // look for response, for max X milli seconds
-    //swSer.println("waiting for string:"+ lookfor);
+    swSer.println("s_waiting for s:"+ lookfor);
     unsigned int offset = 0;
     bool finding = false; // are we part-way through a string match? 
 
    // swSer.print("-->");
+    int saw_any_data = 0;
     while ((last_ms+wait_ms) > millis() )     {
         if ( Serial.available() ) {
             char c = Serial.read();
-            //swSer.print(c); // debug only
+            saw_any_data++;
+           // swSer.print("Z:"); // debug only
+           // swSer.println(String(c)); // debug only
             return_val += c;
             if ( c == lookfor.charAt(offset) ) {  // next char we got is the next char we expected, so move forward a char and keep looking.
                 offset++;
@@ -51,14 +54,19 @@ public:
                 offset = 0;
             }
             if (( finding==true ) && ( offset >= lookfor.length() )) { // we found the entire string, return immediately, dont wait for any more serial data or timeout
-                //swSer.println("<--");
-                //swSer.print("\nfound string:"+ lookfor); 
-                //swSer.print(" with length:"); swSer.println(offset);
+                swSer.println("<--");
+                swSer.print("\nfound s:"+ lookfor); 
+                swSer.print(" with len:"); swSer.print(offset);
+                swSer.print(" scanned:"); swSer.print(saw_any_data);
+                swSer.print(" ms:"); swSer.println(millis()-last_ms);
                 return return_val;
             } 
         }
     }
-    //swSer.println("<--");
+    swSer.println("!--");
+    swSer.print("\nNOT-found s:"+ lookfor); 
+    swSer.print(" scanned:"); swSer.print(saw_any_data);
+    swSer.print(" ms:"); swSer.println(millis()-last_ms);
     return return_val;
   }
 
@@ -67,7 +75,7 @@ public:
     last_ms = millis();
     //bool found = false;
     // look for response, for max X milli seconds
-    swSer.println("waiting for string:"+ lookfor);
+    swSer.println("e_waiting for s:"+ lookfor);
     unsigned int offset = 0;
     bool finding = false; // are we part-way through a string match? 
 
@@ -85,13 +93,15 @@ public:
             }
             if (( finding==true ) && ( offset >= lookfor.length() )) { // we found the entire string, return immediately, dont wait for any more serial data or timeout
                 swSer.println("<--");
-                swSer.print("\nfound string:"+ lookfor); 
-                swSer.print(" with length:"); swSer.println(offset);
+                swSer.print("\nfound s:"+ lookfor); 
+                swSer.print(" with len:"); swSer.println(offset);
+                swSer.print(" ms:"); swSer.println(millis()-last_ms);
                 return true;
             } 
         }
     }
     swSer.println("<--");
+    swSer.print("timeout ms:"); swSer.println(millis()-last_ms);
     return false;
   }
 
@@ -103,9 +113,9 @@ public:
     last_ms = millis();
     //bool found = false;
     // look for response, for max X milli seconds
-    swSer.println("waiting for string:"+ lookfor);
-    swSer.println("waiting for string2:"+ lookfor2);
-    swSer.println("waiting for string3:"+ lookfor3);
+    swSer.println("3_wait for s1:"+ lookfor);
+    swSer.println("3_wait for s2:"+ lookfor2);
+    swSer.println("3_wait for s3:"+ lookfor3);
     unsigned int offset = 0;
     unsigned int offset2 = 0;
     unsigned int offset3 = 0;
@@ -145,27 +155,31 @@ public:
 
             if (( finding==true ) && ( offset >= lookfor.length() )) { // we found the entire string, return immediately, dont wait for any more serial data or timeout
                 swSer.println("<1--");
-                swSer.print("\nfound string:"+ lookfor); 
-                swSer.print(" with length:"); swSer.println(offset);
+                swSer.print("\nfound s1:"+ lookfor); 
+                swSer.print(" with l1:"); swSer.print(offset);
+                swSer.print(" ms:"); swSer.println(millis()-last_ms);
                 return 1;
             } 
 
             if (( finding2==true ) && ( offset2 >= lookfor2.length() )) { // we found the entire string, return immediately, dont wait for any more serial data or timeout
                 swSer.println("<2--");
-                swSer.print("\nfound string2:"+ lookfor2); 
-                swSer.print(" with length2:"); swSer.println(offset);
+                swSer.print("\nfound s2:"+ lookfor2); 
+                swSer.print(" with l2:"); swSer.print(offset);
+                swSer.print(" ms:"); swSer.println(millis()-last_ms);
                 return 2;
             } 
 
             if (( finding3==true ) && ( offset3 >= lookfor3.length() )) { // we found the entire string, return immediately, dont wait for any more serial data or timeout
                 swSer.println("<3--");
-                swSer.print("\nfound string3:"+ lookfor3); 
-                swSer.print(" with length3:"); swSer.println(offset);
+                swSer.print("\nfound s3:"+ lookfor3); 
+                swSer.print(" with l3:"); swSer.print(offset);
+                swSer.print(" ms:"); swSer.println(millis()-last_ms);
                 return 3;
             } 
         }
     }
     swSer.println("<--");
+    swSer.print("timeout ms:"); swSer.println(millis()-last_ms);
     return -1;
   }
 
