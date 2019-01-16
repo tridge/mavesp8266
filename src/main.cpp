@@ -385,7 +385,7 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
 //        String ParamVAL = line.substring(equals_offset+1,eol_offset);  // 30
 
 
-    if ( ! enter_command_mode() ) { return -1 ; } 
+    if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
 
     swSer.println(F("-------flush---------------"));
 
@@ -492,7 +492,7 @@ swSer.println(F("r900x_saveparams()\n"));
 // iterate over the params found in r900x_params.txt and save them to the modem as best as we can.
 
 
-    if ( ! enter_command_mode() ) { return -1; } 
+    if ( ! enter_command_mode_with_retries() ) { return -1; } 
  
     String localfilename = "/r900x_params.txt";
     String remotefilename = "/r900x_params_remote.txt";
