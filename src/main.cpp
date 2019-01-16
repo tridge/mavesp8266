@@ -260,16 +260,21 @@ bool enter_command_mode() {
 
     }
 
+    // if already_commmand_mode_test > 0 
+    return true;
+    
+
 }
 
 //-------------------------------------------
-// warningexecution time on this can be as much as ~4 seconds if the device is repeatly refusing to enter command mode with +++
+// warning execution time on this can be as much as ~4 seconds if the device is repeatly refusing to enter command mode with +++
 bool enter_command_mode_with_retries() { 
 
-    
     bool result = enter_command_mode(); // try 1
 
     swSer.println(result?"true":"false");
+
+    if ( result ) return true;
 
     int chances = 0;
 
@@ -279,9 +284,11 @@ bool enter_command_mode_with_retries() {
 
         swSer.println(result?"re-true":"re-false");
 
+        if ( result ) return true;
+
         chances++;
     }
-
+    return false;
 }
 //-------------------------------------------
 // returns -1 on major error, positive number of params fetched on 'success'
@@ -372,28 +379,14 @@ int r900x_getparams(String filename, bool factory_reset_first) {
      return linecount;
 } 
 
-
-//-------------------------------------------
-// returns negative numbers on error, and positive number on success
-int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL) { 
-
-swSer.println(F("r900x_savesingle_param_and_verify"));
-
-//     String prefix = "AT";  or RT
-//        String ParamID = line.substring(0,colon_offset); // S4
-//        String ParamNAME = line.substring(colon_offset+1,equals_offset); // TXPOWER
-//        String ParamVAL = line.substring(equals_offset+1,eol_offset);  // 30
-
-
-    if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
-
-    swSer.println(F("-------flush---------------"));
+// prerequisite, u should have called some form of enter_command_mode() before this one:
+int r900x_readsingle_param_impl( String prefix, String ParamID ) { 
+    swSer.println(F("r900x_readsingle_param_impl"));
 
     //  read individial param first  ( eg ATS4? ) to see if it even needs changing
     String cmd = prefix+ParamID+"?\r\n"; // first \r\n is to end the +++ command we did above, if any.
 
     swSer.println(cmd); // debug only
-
 
     // here we neter a "retries" loop for approx 100ms each iteration and maxloops 5
     // because it's proven in testing that the RTS3?   and similar style commands don't 
@@ -401,7 +394,7 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
     // also, this doesn't work if the remote radio isn't there and it's a RT command
     String data = "";
     String data3 = "";
-        int max = 0;
+    int max = 0;
     while (( data.length() < 10 ) && (max < 5 ) && ( data3.length() <= 2 ) )  { 
         Serial.write(cmd.c_str());
         Serial.flush(); // output buffer flush
@@ -412,7 +405,11 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
         max++;
     }
 
-    if (data3.length() <= 2 ) { swSer.println(F("RETURN:existing val cant be read")); return -4;  } // if we didn't get a number and \r and \n, then give up.    
+    if (data3.length() <= 2 ) { swSer.println(F("RETURN:existing val cant be read")); return -4;  } 
+    // if we didn't get a number and \r and \n, then give up.    
+
+    // TODO, what if we hit retry limit ? 
+    //if ( max == 5 ) {  ... } 
 
     //here  - decide if param valus is already set right, and if so, return OK status as it's verified! 
     // data3 contains the stored value for the ParamID in the prefix-type radio., with newlines and as a string.
@@ -420,21 +417,51 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
 
     swSer.println(data);
     swSer.println(value);
+   
+    return value; 
+}
+
+//-------------------------------------------
+// no prerequisite version of the above function.
+int r900x_readsingle_param(String prefix, String ParamID) { 
+
+    swSer.println(F("r900x_readsingle_param"));
+
+    if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
+
+    swSer.println(F("-------flush---------------"));
+
+    return r900x_readsingle_param_impl( prefix, ParamID );
+
+}
+
+//-------------------------------------------
+// returns negative numbers on error, and positive number on success
+//        String prefix = "AT";  or RT
+//        String ParamID = line.substring(0,colon_offset); // S4
+//        String ParamNAME = line.substring(colon_offset+1,equals_offset); // TXPOWER
+//        String ParamVAL = line.substring(equals_offset+1,eol_offset);  // 30
+int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL) { 
+
+    swSer.println(F("r900x_savesingle_param_and_verify"));
+
+    if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
+
+    swSer.println(F("-------flush---------------"));
+
+    int value = r900x_readsingle_param_impl( prefix, ParamID );
     
-    if (value == ParamVAL.toInt() ) { swSer.println(F("RETURN:val already set")); return 1;  } // success, it's already set at that target val    
-    
+    // success, it's already set at that target val    
+    if (value == ParamVAL.toInt() ) { swSer.println(F("RETURN:val already set")); return 1;  } 
 
     int param_write_counter = 0;
     param_write_retries:
 
-    swSer.println(F("5#############################################################"));
     // set param to new vaue
     String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
-
     swSer.println(ParamCMD); // debug only.
     Serial.write(ParamCMD.c_str());
     Serial.flush(); // output buffer flush
-    swSer.println(F("6#############################################################"));
     bool ok = SmartSerial->expect("OK",250);  // needs to be bigger than 200.
     swSer.println(F("7#############################################################"));
     if ( ok ) { 
@@ -452,6 +479,10 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
         swSer.println(F("RETURN:no response to param set request - 5 retries exceeded")); 
         return -2; // neg number/s mean error
     } 
+
+
+    int param_save_counter = 0;
+    param_save_retries:
 
     // save params AND take out of command mode via a quick reboot
     String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
@@ -475,8 +506,15 @@ swSer.println(F("r900x_savesingle_param_and_verify"));
         while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point. - ie 'RTZ' response
 
     } else { 
-        swSer.println(F("FALED-TO-GET OK Response from radio.\n"));
-        swSer.println(F("RETURN:no response to param write"));
+
+        swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+        param_save_counter++;
+        if ( param_save_counter < 5 ) { 
+            goto param_save_retries;
+        }
+
+        // if 5 retries exceeded, return error.
+        swSer.println(F("RETURN:no response to param save request - 5 retries exceeded")); 
         return -3;
     } 
 
