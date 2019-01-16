@@ -121,7 +121,7 @@ button:hover {
     
   <!-- One "tab" for each step in the form: -->
   <div class="tab">Power on Radios and Link them:
-    <p><button type="button" id="cc" onclick="">If both radio/s have a solid GREEN LED, press Next.<br>BLah blah Blah.   <br> BLah blah Blah.   <br></button></p>
+    <p><button type="button" id="cc" onclick="">Please ensure both radios (900x) have a solid GREEN LED, then press Next.<br><br>We will test the link to be sure.... <br></button></p>
   </div>
   <div class="tab">Radio NetworkID change, matching in both Local and Remote radio:
     <p><input placeholder="Local/Remote Radio NetworkID ...(0-255)" oninput="this.className = ''" name="localC" id="localC"></p>
@@ -147,8 +147,8 @@ button:hover {
   </div>
   <div style="overflow:auto;">
     <div style="float:right;">
-      <button type="button" id="prevBtn" onclick="nextPrev(-1)">Previous</button>
-      <button type="button" id="nextBtn" onclick="nextPrev(1)">Next</button>
+      <button type="button" id="prevBtn" onclick="attemptNextPrev(-1)">Previous</button>
+      <button type="button" id="nextBtn" onclick="attemptNextPrev(1)">Next</button>
     </div>
   </div>
   <!-- Circles which indicates the steps of the form: -->
@@ -167,7 +167,8 @@ showTab(currentTab); // Display the crurrent tab
 
 
 function showTab(n) {
-    
+
+
   t = document.getElementById("t"+(currentTab-1));
   if ( t != null ) t.innerHTML = "DONE.&#10004;";
 
@@ -192,59 +193,82 @@ function showTab(n) {
   //... and run a function that will display the correct step indicator:
   fixStepIndicator(n);
 
-  if ( n == 0 ) execute_tab0();
-  if ( n == 1 ) execute_tab1();
-  if ( n == 2 ) execute_tab2();
-  if ( n == 3 ) execute_tab3();
-  if ( n == 4 ) execute_tab4();
-  if ( n == 5 ) execute_tab5();
 }
 
+// user requests, then we trigger ajax event, which actually changes tab with nextPrev on success.
+var direction;
+function attemptNextPrev(n) { 
 
-function execute_tab0() { 
 
- sendData(0);
+  // Exit the function if any field in the current tab is invalid:
+  if (n == 1 && !validateForm()) return false;
+
+  direction = n; // save for after ajax so we know whih direction to move.
+
+  // make Next button say "working"...
+  if ( n == 1 ) {  // forward
+      document.getElementById("nextBtn").innerHTML = "Working.....";
+      document.getElementById("nextBtn").style.backgroundColor = "#e89b08";//orange
+  }
+  if ( n == -1 ) {  // back
+      document.getElementById("prevBtn").innerHTML = "Working.....";
+      document.getElementById("prevBtn").style.backgroundColor = "#e89b08";//orange
+  }
+
+
+   // attempt ajax to server and this will hook the showTab to be done on return from that.
+   // saveTab = currentTab; // incase we need to stay on current tab.
+   // currentTab = currentTab + n; // try to increment/decrement
+   sendData(currentTab + n);
+
+} 
+
+
+function noTabChange(n,t) {
+
+  alert("Sorry, somethings not right with the radio comms, please check and retry."+t);
+
+  // make Next button say "working"...
+  if ( n == 1 ) {  // forward
+      document.getElementById("nextBtn").innerHTML = "Next";
+      document.getElementById("nextBtn").style.backgroundColor = "#4CAF50";//green
+  }
+  if ( n == -1 ) {  // back
+      document.getElementById("prevBtn").innerHTML = "Previous";
+      document.getElementById("prevBtn").style.backgroundColor = "#4CAF50";//green
+  }
+
 }
-function execute_tab1() { 
-
- sendData(1);
-}
-function execute_tab2() { 
-
- sendData(2);
-}
-function execute_tab3() { 
-
- sendData(3);
-}
-function execute_tab4() { 
-
- sendData(4);
-}
-function execute_tab5() { 
-
- sendData(5);
-}
-
 function nextPrev(n) {
+
+  // make Next button say "working"...
+  if ( n == 1 ) {  // forward
+      document.getElementById("nextBtn").innerHTML = "Next";
+      document.getElementById("nextBtn").style.backgroundColor = "#4CAF50";//green
+  }
+  if ( n == -1 ) {  // back
+      document.getElementById("prevBtn").innerHTML = "Previous";
+      document.getElementById("prevBtn").style.backgroundColor = "#4CAF50";//green
+  }
 
   // This function will figure out which tab to display
   var x = document.getElementsByClassName("tab");
-  // Exit the function if any field in the current tab is invalid:
-  if (n == 1 && !validateForm()) return false;
+
   // Hide the current tab:
   x[currentTab].style.display = "none";
-  // Increase or decrease the current tab by 1:
-  currentTab = currentTab + n;
+
+ // Increase or decrease the current tab by 1:
+  currentTab = currentTab + n; // try to increment/decrement
+
+
   // if you have reached the end of the form...
   if (currentTab >= x.length) {
     // ... the form gets submitted:
     document.getElementById("regForm").submit();
     return false;
   }
-  // Otherwise, display the correct tab:
-  showTab(currentTab);
 
+  showTab(currentTab); // stay on current tab if the showTab() returns false.
 }
 
 function validateForm() {
@@ -313,6 +337,19 @@ function sendData(page) {
     // Define what happens on successful data submission
     XHR.addEventListener("load", function(event) {
       //alert(event.target.responseText);
+
+        var t = event.target.responseText;
+        if ( t.startsWith("SUCCESS")) {
+         nextPrev(direction);
+         return;
+        }
+        if ( t.includes("Saved")) {
+         nextPrev(direction);
+         return;
+        }
+        noTabChange(direction,t);
+        return;
+
     });
     // Define what happens in case of error
     XHR.addEventListener("error", function(event) {

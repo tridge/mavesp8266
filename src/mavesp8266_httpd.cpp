@@ -701,6 +701,7 @@ void handle_getJSysStatus()
 
 // see main.cpp
 extern int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL); 
+extern int r900x_readsingle_param(String prefix, String ParamID);
 
 //---------------------------------------------------------------------------------
 // for /wiz url
@@ -720,8 +721,8 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
     //remoteDefaultPPM: 1
     //confirmtest: Yes
 
-    //String message = "";  // ultimately will be output to user
-    String message = FPSTR(kHEADER);
+    String message = "";  // ultimately will be output to user
+    //String message = FPSTR(kHEADER);
 
     int page = -1;
     if(webServer.hasArg("page")) {
@@ -732,7 +733,21 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         ok = true;
     }
     if(page == 1) { // page=1 called on the 'Next' from the first page, where we actually input nothing, so we do nothing here but succeed
-        ok = true;
+        //ok = true;
+
+        // test if the remote radio is present by trying to read a parameter from it...
+        int val = r900x_readsingle_param("RT", "S0");
+        int retval = 200; // 200=success, 201 = fail.
+        if (val >= 35) { // success
+            message = "SUCCESS param reading from REMOTE 900x radio. RT S0->"+String(val);
+        } else { 
+            message = "FAIL param reading from REMOTE 900x radio. RT S0->"+String(val);
+            retval = 201;
+        }
+        setNoCacheHeaders();
+        webServer.send(retval, FPSTR(kTEXTHTML), message);
+        return;
+
     }    
     if((page == 2) && webServer.hasArg("localC")) {
         //ok = true;
