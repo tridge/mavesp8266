@@ -541,7 +541,7 @@ swSer.println(F("r900x_saveparams()\n"));
     }
 
     int done = 0; 
-    int failurecount = 0;
+
     while ( done < 30 ) { 
 
         LEDState = !LEDState;
@@ -581,10 +581,14 @@ swSer.println(F("r900x_saveparams()\n"));
             continue; 
         }
 
+        // basic retry counter for 
+        int param_write_counter2 = 0;
+        param_write_retries2:
         
         String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
 
-        // TODO implement retries on ths for if we didn't get a response to the command in-time..? 
+        // we implement retries on ths for if we didn't get a response to the command in-time..,
+        // and becasue AT and RT commands are notoriously non-guaranteed.
 
         swSer.println(ParamCMD); // debug only.
         Serial.write(ParamCMD.c_str());
@@ -596,19 +600,14 @@ swSer.println(F("r900x_saveparams()\n"));
         } else { 
 
             swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+            param_write_counter2++;
+            if ( param_write_counter2 < 5 ) { 
+                goto param_write_retries2;
+            }
+            // if ~5 retries exceeded, return error.
+            swSer.println(F("RETURN:no response to param set request - 5 retries exceeded")); 
+            return -2; // neg number/s mean error
 
-                    // 1 retry for in-case it was just transitional...
-                    swSer.println(ParamCMD); // debug only.
-                    Serial.write(ParamCMD.c_str());
-                    Serial.flush(); // output buffer flush
-                    bool retryok = SmartSerial->expect("OK",200);
-                    if ( ! retryok ) { 
-                       failurecount++;
-                        if ( failurecount > 4 ) { 
-                            swSer.println(F("exceeded max failure count of 4, failed.")); // debug only.
-                            return false; // in the event that we don't have modem, this fails it faster
-                        }
-                    }
         } 
         
         done++;
