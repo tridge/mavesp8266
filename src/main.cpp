@@ -1151,7 +1151,7 @@ void setup() {
         //-- Wait a minute to connect
         for(int i = 0; i < 120 && WiFi.status() != WL_CONNECTED; i++) {
             #ifdef ENABLE_DEBUG
-            Serial.print(".");
+            //Serial.print(".");
             #endif
             delay(500);
             LEDState = !LEDState;
@@ -1201,7 +1201,7 @@ void setup() {
        bool success = MDNS.begin(mdnsName);
        if ( success ) { retries = 0; } 
        else { 
-        Serial.println("Error setting up MDNS responder!");
+        swSer.println("Error setting up MDNS responder!");
         delay(1000);
         retries --;
        }
@@ -1242,7 +1242,7 @@ void client_check() {
 
     uint8 x = wifi_softap_get_station_num();
     if ( client_count != x ) { 
-        Serial.println("new client/s connected"); 
+        swSer.println("new client/s connected"); 
         client_count = x;
         DEBUG_LOG("Got %d client(s)\n", client_count); 
 

@@ -87,13 +87,13 @@ void ESP8266HTTPUpdateServer::setup(ESP8266WebServer *server, const char * path,
         _authenticated = (_username == NULL || _password == NULL || _server->authenticate(_username, _password));
         if(!_authenticated){
           if (_serial_output)
-            Serial.printf("Unauthenticated Update\n");
+            //SwSer.printf("Unauthenticated Update\n");
           return;
         }
 
         WiFiUDP::stopAll();
-        if (_serial_output)
-          Serial.printf("Update: %s\n", upload.filename.c_str());
+        //if (_serial_output)
+         // Serial.printf("Update: %s\n", upload.filename.c_str());
 //        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
 //        if(!Update.begin(maxSketchSpace)){//start with max available size
 //          _setUpdaterError();
@@ -113,20 +113,20 @@ void ESP8266HTTPUpdateServer::setup(ESP8266WebServer *server, const char * path,
 
 //
       } else if(_authenticated && upload.status == UPLOAD_FILE_WRITE && !_updaterError.length()){
-        if (_serial_output) Serial.printf(".");
+        //if (_serial_output) Serial.printf(".");
         if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
           _setUpdaterError();
         }
       } else if(_authenticated && upload.status == UPLOAD_FILE_END && !_updaterError.length()){
         if(Update.end(true)){ //true to set the size to the current progress
-          if (_serial_output) Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+          //if (_serial_output) Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
         } else {
           _setUpdaterError();
         }
         if (_serial_output) Serial.setDebugOutput(false);
       } else if(_authenticated && upload.status == UPLOAD_FILE_ABORTED){
         Update.end();
-        if (_serial_output) Serial.println("Update was aborted");
+        //if (_serial_output) Serial.println("Update was aborted");
       }
       delay(0);
     });
