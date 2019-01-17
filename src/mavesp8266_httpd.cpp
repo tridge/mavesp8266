@@ -48,6 +48,9 @@
 #include <ESP8266HTTPUpdateServer.h>
 
 #include <SoftwareSerial.h>
+
+#include "updater.h"  // const char PROGMEM UPDATER[] , allows us to embed a copy of update.htm for the /updatepage
+
 extern SoftwareSerial swSer;
 
 const char PROGMEM kTEXTPLAIN[]  = "text/plain";
@@ -987,17 +990,10 @@ void send_favicon() {
 static void handle_update_html()
 {
 
-    // try to render /update.htm as-is, otherwise fallback to this: 
+    // try to render external /update.htm as-is, otherwise fallback to the embedded copy. 
     if (!handleFileRead("/update.htm")) {
 
-        String message =  FPSTR(kHEADER);
-        message += "Please upload a spiffs.bin to continue: \n";
-        message += "<form method='POST' action='/update' enctype='multipart/form-data'>\n";
-        message += "Spiffs:<br>\n";
-        message += "<input type='file' name='spiffs'>\n";
-        message += "<input type='submit' value='Update SPIFFS'>\n";
-        message += "</form>\n";
-
+        String message =  FPSTR(UPDATER);
         webServer.send(200, FPSTR(kTEXTHTML), message);
 
     }
