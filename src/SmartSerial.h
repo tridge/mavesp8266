@@ -78,11 +78,11 @@ public:
     swSer.println("e_waiting for s:"+ lookfor);
     unsigned int offset = 0;
     bool finding = false; // are we part-way through a string match? 
-
+    int rawcount = 0;
     swSer.print("-->");
     while ((last_ms+wait_ms) > millis() )     {
         if ( Serial.available() ) {
-            char c = Serial.read();
+            char c = Serial.read();  rawcount++;
             swSer.print(c); // debug only
             if ( c == lookfor.charAt(offset) ) {  // next char we got is the next char we expected, so move forward a char and keep looking.
                 offset++;
@@ -101,7 +101,8 @@ public:
         }
     }
     swSer.println("<--");
-    swSer.print("timeout ms:"); swSer.println(millis()-last_ms);
+    swSer.print(" raw bytes read:"); swSer.println(rawcount);
+    swSer.print(" timeout ms:"); swSer.println(millis()-last_ms);
     return false;
   }
 
