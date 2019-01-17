@@ -71,6 +71,8 @@ function saveform(tableid, tourl) {
             } 
 
             name=stuff2[0];
+            f = document.getElementById(id);
+            if ( f == null ) continue; // skip invalid fields if not present
             value = document.getElementById(id).value
             payload = payload + id_name + value + "\r\n";
         
