@@ -357,7 +357,17 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     // also write params to spiffs, for user record:
     if ( data.length() > 300 ) { // typical file length is around 400chars 
         f = SPIFFS.open(filename, "w");
-        f.print(data);
+        f.print(data);  //actual parm data.
+
+        // tack encryption key onto the end of the param file, if it exists.
+        File e = SPIFFS.open("/key.txt", "w");
+        String estr = "&E:ENCRYPTION_KEY="+e.readString();// entire file, includes /r/n on end.
+        
+        if (estr.length() > 30 && e) { // basic check, file should exist and have at least 30 bytes in it to be plausible
+          f.print(estr);
+        }
+        e.close(); 
+
         f.close();
     } else { 
         swSer.println(F("didn't write param file, as it contained insufficient data"));
@@ -388,6 +398,9 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
 
     swSer.println(cmd); // debug only
 
+    // shortcurcuit for &E
+    if ( ParamID == "&E" ) return -4; // not readable, for now. 
+
     // here we neter a "retries" loop for approx 100ms each iteration and maxloops 5
     // because it's proven in testing that the RTS3?   and similar style commands don't 
     // work first-go , perhaps 2nd go? 
@@ -395,6 +408,7 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
     String data = "";
     String data3 = "";
     int max = 0;
+    // TODO does not handle RT&E? params. as it returns a long string with 32 hex chars.
     while (( data.length() < 10 ) && (max < 5 ) && ( data3.length() <= 2 ) )  { 
         Serial.write(cmd.c_str());
         Serial.flush(); // output buffer flush
@@ -438,21 +452,27 @@ int r900x_readsingle_param(String prefix, String ParamID) {
 //-------------------------------------------
 // returns negative numbers on error, and positive number on success
 //        String prefix = "AT";  or RT
-//        String ParamID = line.substring(0,colon_offset); // S4
+//        String ParamID = line.substring(0,colon_offset); // S4  or E?
 //        String ParamNAME = line.substring(colon_offset+1,equals_offset); // TXPOWER
 //        String ParamVAL = line.substring(equals_offset+1,eol_offset);  // 30
-int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL) { 
+
+int r900x_savesingle_param_and_verify_more(String prefix, String ParamID, String ParamVAL, bool save_and_reboot) { 
 
     swSer.println(F("r900x_savesingle_param_and_verify"));
 
     if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
 
-    swSer.println(F("-------flush---------------"));
+    swSer.println(F("X-------flush---------------"));
+    while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
 
+    // might return negative number on error.... ( such as &E being empty. )
     int value = r900x_readsingle_param_impl( prefix, ParamID );
     
     // success, it's already set at that target val    
     if (value == ParamVAL.toInt() ) { swSer.println(F("RETURN:val already set")); return 1;  } 
+
+    // unreadable error... for now we try to write it anyway.
+    //if ( value < 0 ) {     }
 
     int param_write_counter = 0;
     param_write_retries:
@@ -480,6 +500,11 @@ int r900x_savesingle_param_and_verify(String prefix, String ParamID, String Para
         return -2; // neg number/s mean error
     } 
 
+
+    if ( ! save_and_reboot ) {
+        swSer.println(F("Skipping save and reboot\nRETURN:PERFECT"));
+        return 3;
+    } 
 
     int param_save_counter = 0;
     param_save_retries:
@@ -522,8 +547,11 @@ int r900x_savesingle_param_and_verify(String prefix, String ParamID, String Para
     return 2;
 }
 //-------------------------------------------
+int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL) { 
+    return r900x_savesingle_param_and_verify_more( prefix,  ParamID,  ParamVAL, true);
+}
 
-
+//-------------------------------------------
 
 bool r900x_saveparams(String filename) { 
 swSer.println(F("r900x_saveparams()\n"));

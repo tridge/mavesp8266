@@ -704,7 +704,79 @@ void handle_getJSysStatus()
 
 // see main.cpp
 extern int r900x_savesingle_param_and_verify(String prefix, String ParamID, String ParamVAL); 
+extern int r900x_savesingle_param_and_verify_more(String prefix, String ParamID, String ParamVAL, bool save_and_reboot); 
 extern int r900x_readsingle_param(String prefix, String ParamID);
+
+//---------------------------------------------------------------------------------
+
+// returns 200, 201, or 202
+int wiz_param_helper( String ParamID, String ParamVAL ) { 
+        
+        // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
+        //int retval = r900x_savesingle_param_and_verify("RT", ParamID, ParamVAL);  
+        int retval =    r900x_savesingle_param_and_verify_more("RT", ParamID, ParamVAL, false);
+        int retval2 = 0;
+        if ( retval > 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
+           //retval2 = r900x_savesingle_param_and_verify("AT", ParamID, ParamVAL);
+           retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, false);
+           // if it failed, retry, because the remote already succeeded and the local should too.
+           if ( retval2 < 0 ) { 
+            //retval2 = r900x_savesingle_param_and_verify("AT", ParamID, ParamVAL);
+            retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, false);
+           }
+           if ( retval2 > 0 ) { 
+              return 200;
+           }
+        }
+        // saving to remote failed, advise of that as a priority       
+        if ( retval < 0 ) {
+            return 201;
+        }
+        // saving to local failed, advise of that otherwise.         
+        if ( retval2 < 0 ) {
+            return 202;
+        }
+} 
+//---------------------------------------------------------------------------------
+// tries to save to remote first, and if that works, tries twice to save to local.
+// in any case, it returns HTTP codes 200 for success, and 201 for remote fail, and 202 for local fail.
+void wiz_param_saver( String ParamID, String ParamVAL ) { 
+
+    // returns 200, 201, or 202
+    int retval = wiz_param_helper( ParamID, ParamVAL); 
+
+    String message = "";
+
+    // saving to remote failed, advise of that        
+    if ( retval == 201 ) {
+        swSer.println("B2");
+        message = "FAIL param saving to REMOTE 900x radio. RT ";
+        message += ParamID+"->"+ParamVAL;
+        setNoCacheHeaders();
+        webServer.send(201, FPSTR(kTEXTHTML), message);
+        return;
+    }
+    // saving to local failed, advise of that          
+    if ( retval == 202 ) {
+        swSer.println("C2");
+        message = "FAIL param saving to LOCAL 900x radio. AT ";
+        message += ParamID+"->"+ParamVAL;
+        setNoCacheHeaders();
+        webServer.send(202, FPSTR(kTEXTHTML), message);
+        return;
+    } 
+    //if ( retval == 200 ) {
+        message = "SUCCESS param saving to REMOTE & LOCAL 900x radio. AT ";
+        message += ParamID+"->"+ParamVAL;
+        swSer.println("E2");
+        setNoCacheHeaders();
+        swSer.println(message);
+        webServer.send(200, FPSTR(kTEXTHTML), message);
+        return;
+    //}
+
+}
+
 
 //---------------------------------------------------------------------------------
 // for /wiz url
