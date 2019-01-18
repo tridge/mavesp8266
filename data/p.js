@@ -139,7 +139,14 @@ function reload_fresh(url,reload) {
         //if obj.type == "local" or "remote"
         //if obj.num_read == 23
 
-        alert("Refreshed ("+obj.num_read+") Params from the ("+obj.type+") Radio");
+        var displayable = obj.num_read-1;
+
+        var user_msg = "Refreshed ("+displayable+") Params from the ("+obj.type+") Radio";
+        if  (( displayable == 0 )  && ( obj.type == "remote" ) ) { 
+            user_msg += "\nCant communicate with your remote radio, \nPlease check Settings using AT command set.";
+        }
+
+        alert(user_msg);
 
         if ( reload) {
             window.location.reload(true);

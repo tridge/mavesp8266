@@ -15,12 +15,14 @@ body {
   margin: 20px auto;
   font-family: Raleway;
   padding: 20px;
-  width: 80%;
+  width: 70%;
   min-width: 300px;
 }
 
 h1 {
   text-align: center;  
+    margin-top: 10px;
+    margin-bottom: 10px;
 }
 
 input {
@@ -128,19 +130,38 @@ button:hover {
     <p><button type="button" id="cc" onclick="choosenetid()">I don't know, just pick one for me.</button></p>
   </div>
   <div class="tab">Enable Encryption by setting new encryption key in both Local and Remote radio:
+    <p><input placeholder="To Enable Encryption, type '1' here, To Disable Encryption, type '0' here, or press a button below." oninput="this.className = ''" name="localEE" id="localEE"></p>
     <p><input placeholder="Local/Remote Radio Encryption Secret... (32 Hexadecimal characters only, no punctuation)" oninput="this.className = ''" name="localE" id="localE"></p>
-    <p><button type="button" id="rs" onclick="randomisesecret()">Pick a randomised secret for me.</button></p>
+    <p><button type="button" id="rs" onclick="enableencryption()">Enable Encryption</button> 
+    <button type="button" id="rs" onclick="disableencryption()">Disable Encryption</button> 
+    <button type="button" id="rs" onclick="randomisesecret()">Enable AND Pick a secret for me...</button></p>
   </div>
   <div class="tab">Enable PPM passthru ( PPMIN on local radio, PPMOUT on remote radio ):
     <p><input placeholder="Local Radio PPM IN..." oninput="this.className = ''" name="localPPMin" id="localPPMin" ></p>
     <p><input placeholder="Remote Radio PPM OUT..." oninput="this.className = ''" name="remotePPMOUT" id="remotePPMOUT"></p>
-    <p><button type="button" id="rs" onclick="doppm()">Yes, Enable PPM passthru for me.</button></p>
+    <p><button type="button" id="rs" onclick="doppm(1)">Yes, Enable PPM passthru.</button>
+    <button type="button" id="rs" onclick="doppm(0)">Disable PPM passthru.</button></p>
   </div>
-  <div class="tab">Set PPM Failsafe settings:
-    <p><input placeholder="Remote Radio PPM FailSafe Default..." oninput="this.className = ''" name="remoteDefaultPPM" id="remoteDefaultPPM"></p>
-    <p><button type="button" id="rs" onclick="doppmfailsafe()">Yes, do PPM Failsafe settings for me.</button></p>
+  <div class="tab">Set PPM Failsafe?<br>
+                This will allow you to RECORD a snapshot of the current incoming PPM stream (right now!)<br>
+                 and it will be used as the DEFAULT for PPM output (vehicle side) when the <br>
+                long-range 900x radio/s loose link, and the transmitter PPM isn't available.<br>
+                <p>
+                Please ensure your Sticks and switches are set in the position you want for FAILSAFE.<br>
+                If using an Autopilot, we recommend RTL or Return-To-Launch. If Not, we recommend <br>
+                setting/s that will keep your aircraft in slow circling stable flight for as long as possible.<br>
+                <p>
+                Press one of the buttons below, then Next to 'Save'...<br>
+    <p><input placeholder="Remote Radio PPM FailSafe Default..." oninput="this.className = ''" name="remoteDefaultPPM" id="remoteDefaultPPM" style="visibility: hidden"></p>
+    <p><button type="button" id="rs" onclick="doppmfailsafe(1)">Yes Record PPM steeam for PPM Failsafe for me when 'Next' is clicked.</button>
+    <button type="button" id="rs" onclick="doppmfailsafe(0)">No, or I'm not using that feature.</button></p>
   </div>
-  <div class="tab">PPM failsafe test:
+  <div class="tab">Are your PPM failsafe settings actually tested?: <p>
+                   Please don't turn your Transmitter or TXMOD off right now, <br>
+                    or you won't be able to click Yes. :-) <p>
+                    When this wizard is complete, please check what your aircraft <br>
+                    actually does when the transmitter and TXMOD is turned OFF.<br>
+ 
     <p><input placeholder="Have you Tested what happens when your TXMOD and Transmitter are turned OFF..." oninput="this.className = ''" name="confirmtest" id="confirmtest"></p>
     <p><button type="button" id="rs" onclick="dotest()">Yes, I know this can crash my aircraft if I set it wrong.</button></p>
 
@@ -186,9 +207,21 @@ function showTab(n) {
     document.getElementById("prevBtn").style.display = "inline";
   }
   if (n == (x.length - 1)) {
-    document.getElementById("nextBtn").innerHTML = "Submit";
+    
+
+    document.getElementById("nextBtn").innerHTML = "Finish";
   } else {
     document.getElementById("nextBtn").innerHTML = "Next";
+  }
+  if (n == (x.length )) {
+
+          t = document.getElementById("t"+(currentTab));
+          if ( t != null ) t.innerHTML = "DONE.&#10004;";
+
+          r = document.getElementById("r"+(currentTab));
+          if ( r != null )  r.style.backgroundColor='green'	;
+
+
   }
   //... and run a function that will display the correct step indicator:
   fixStepIndicator(n);
@@ -209,17 +242,21 @@ function attemptNextPrev(n) {
   if ( n == 1 ) {  // forward
       document.getElementById("nextBtn").innerHTML = "Working.....";
       document.getElementById("nextBtn").style.backgroundColor = "#e89b08";//orange
-  }
-  if ( n == -1 ) {  // back
-      document.getElementById("prevBtn").innerHTML = "Working.....";
-      document.getElementById("prevBtn").style.backgroundColor = "#e89b08";//orange
-  }
-
 
    // attempt ajax to server and this will hook the showTab to be done on return from that.
    // saveTab = currentTab; // incase we need to stay on current tab.
    // currentTab = currentTab + n; // try to increment/decrement
    sendData(currentTab + n);
+  }
+  if ( n == -1 ) {  // back
+      document.getElementById("prevBtn").innerHTML = "Working.....";
+      document.getElementById("prevBtn").style.backgroundColor = "#e89b08";//orange
+
+   // don't attempt to hit the server on "previous" button, just change tab immediately
+    nextPrev(direction);
+  }
+
+
 
 } 
 
@@ -264,7 +301,19 @@ function nextPrev(n) {
   // if you have reached the end of the form...
   if (currentTab >= x.length) {
     // ... the form gets submitted:
-    document.getElementById("regForm").submit();
+    //document.getElementById("regForm").submit();
+
+      document.getElementById("nextBtn").innerHTML = "WIZARD Is Completed, Thankyou.!";
+      document.getElementById("nextBtn").style.backgroundColor = "#4c9caf";//blue gray.
+
+        
+         t = document.getElementById("t"+(currentTab-1));
+          if ( t != null ) t.innerHTML = "DONE.&#10004;";
+
+          r = document.getElementById("r"+(currentTab-1));
+          if ( r != null )  r.style.backgroundColor='green'	;
+
+
     return false;
   }
 
@@ -307,17 +356,53 @@ function fixStepIndicator(n) {
 function choosenetid() {  // 0-255
     document.getElementById("localC").value =  Math.floor((Math.random() * 255) );
 } 
+
+function disableencryption() { 
+
+  // disable encryption
+  document.getElementById("localEE").value = "0";
+  document.getElementById("localE").value = " "; // overwrite the validator on the unused field.
+ document.getElementById("localE").className = ''; // validator color too.
+}
+function enableencryption() { 
+
+  // enable encryption
+  document.getElementById("localEE").value = "1";
+  document.getElementById("localE").value = "";
+}
 function randomisesecret() {  // random 32 hex characters string, 
-    document.getElementById("localE").value =  Math.floor((Math.random()*0xFFFFFFFF)).toString(16)+
-                                               Math.floor((Math.random()*0xFFFFFFFF)).toString(16); 
+ 
+  // enable encryption
+  document.getElementById("localEE").value = "1";
+ 
+  var text = "";
+  var possible = "ABCDEF0123456789"; // hexadecimal.
+  for (var i = 0; i < 32; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+  document.getElementById("localE").value = text;
 } 
-function doppm() { 
-    document.getElementById("localPPMin").value =  1;
-    document.getElementById("remotePPMOUT").value =  1;
+var did_user_enable_ppm_passthrough = -1
+function doppm(state) { 
+
+    did_user_enable_ppm_passthrough = state;
+
+    document.getElementById("localPPMin").value =  state;
+    document.getElementById("remotePPMOUT").value =  state;
 } 
 
-function doppmfailsafe() { 
-    document.getElementById("remoteDefaultPPM").value =  1;
+function doppmfailsafe(state) { 
+
+    if ( state == 1 ) { 
+
+        if ( did_user_enable_ppm_passthrough == 1 ) { 
+            document.getElementById("remoteDefaultPPM").value =  1;
+        } else { 
+            alert("You have ppm-passthrough DISABLED on the previous page, I cant set the failsafe for you, please click No.");
+            document.getElementById("remoteDefaultPPM").value =  0;
+        } 
+    } else { 
+         document.getElementById("remoteDefaultPPM").value =  0;
+    }
 
 } 
 function dotest() { 

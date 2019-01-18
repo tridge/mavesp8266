@@ -1,0 +1,27 @@
+HOW TO FLASH 4M version OTA to a older version with 2M flashed on it...
+------------------------------------------------------------------
+
+apply 900x and ribbon cable.
+wait for radio to be reflashed ( if it happens ) - 1min?
+
+connect to 'ardupilot' wifi
+
+upload the .4m.bin as firmware.bin to /update ( use the top button/s , press top-left, select file, then press top right )
+
+after reboot, it will 'format spiffs' during the next boot, and might take time to come up - 2 mins? 
+
+connect to 'TXMOD-XX-XX-XX' wifi.
+
+refresh the /updatepage till it loads a webpage with 'step 1' and 'step2' in it..
+
+At that page, you upload the  .4m.spiffs.bin  at 'step 2' in the page and reboot. 
+progress bar goes across page, then 'file not found' displays, leave browser on that 'error' page.
+
+wait while it reboots again and flashes the 900x modem again - 1min?
+
+refresh 'error' page, and click title, or load http://192.168.4.1/   and look for version 1.3.1 and 'your flash size is 4M' 
+
+
+if it gets stuck, press reset button 5 times, and it should reboot and continue.
+
+

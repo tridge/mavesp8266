@@ -63,6 +63,7 @@ const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>RFDesign T
 const char PROGMEM kBADARG[]     = "BAD ARGS";
 const char PROGMEM kAPPJSON[]    = "application/json";
 
+
 const char* kBAUD       = "baud";
 const char* kPLAIN       = "plain";
 const char* kPWD        = "pwd";
@@ -710,19 +711,16 @@ extern int r900x_readsingle_param(String prefix, String ParamID);
 //---------------------------------------------------------------------------------
 
 // returns 200, 201, or 202
-int wiz_param_helper( String ParamID, String ParamVAL ) { 
+int wiz_param_helper( String ParamID, String ParamVAL, bool save_and_reboot  ) { 
         
         // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
-        //int retval = r900x_savesingle_param_and_verify("RT", ParamID, ParamVAL);  
-        int retval =    r900x_savesingle_param_and_verify_more("RT", ParamID, ParamVAL, false);
+        int retval =    r900x_savesingle_param_and_verify_more("RT", ParamID, ParamVAL, save_and_reboot);
         int retval2 = 0;
         if ( retval > 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
-           //retval2 = r900x_savesingle_param_and_verify("AT", ParamID, ParamVAL);
-           retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, false);
+           retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, save_and_reboot);
            // if it failed, retry, because the remote already succeeded and the local should too.
            if ( retval2 < 0 ) { 
-            //retval2 = r900x_savesingle_param_and_verify("AT", ParamID, ParamVAL);
-            retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, false);
+            retval2 = r900x_savesingle_param_and_verify_more("AT", ParamID, ParamVAL, save_and_reboot);
            }
            if ( retval2 > 0 ) { 
               return 200;
@@ -743,7 +741,7 @@ int wiz_param_helper( String ParamID, String ParamVAL ) {
 void wiz_param_saver( String ParamID, String ParamVAL ) { 
 
     // returns 200, 201, or 202
-    int retval = wiz_param_helper( ParamID, ParamVAL); 
+    int retval = wiz_param_helper( ParamID, ParamVAL, true);  // true means save-and-reboot after setting param
 
     String message = "";
 
@@ -807,6 +805,8 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
     if(page == 0) { // page=0 called on the first-load of the first page in the wizard, before any user input, so we do nothing here but succeed
         ok = true;
     }
+
+    // link check
     if(page == 1) { // page=1 called on the 'Next' from the first page, where we actually input nothing, so we do nothing here but succeed
         //ok = true;
 
@@ -824,67 +824,166 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         return;
 
     }    
+    //NETID
     if((page == 2) && webServer.hasArg("localC")) {
         //ok = true;
-        int w1 = webServer.arg("localC").toInt();
-        
-        // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
-        int retval = r900x_savesingle_param_and_verify("RT", "S3", String(w1));
-        int retval2 = 0;
-        if ( retval > 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
-           retval2 = r900x_savesingle_param_and_verify("AT", "S3", String(w1));
-           // if it failed, retry, because the remote already succeeded and the local should too.
-           if ( retval2 < 0 ) { 
-            retval2 = r900x_savesingle_param_and_verify("AT", "S3", String(w1));
-           }
-           if ( retval2 > 0 ) { 
-              ok = true;   // only if the remote AND local params save/verify correctly do we believe it.
-            }
-        }
-        swSer.println("A");
-        if ( ! ok ) { 
+        int w1 = webServer.arg("localC").toInt(); // convert to int and back removes any whitespace and \r\n etc.
+        String Sw1 = String(w1);
 
-            // saving to remote failed, do we need to advise of that ?         
-            if ( retval < 0 ) {
-                swSer.println("B");
-                message = "FAIL param saving to REMOTE 900x radio. RT S3->"+String(w1);
+        wiz_param_saver( "S3", Sw1 ); // non-returning, emits http response, saves and reboots radios after
+        
+    }
+
+    // ENCRYPTION
+    if((page == 3) && webServer.hasArg("localE")) {
+        //ok = true;
+
+        String w2 = webServer.arg("localE").c_str();
+        int EE = webServer.arg("localEE").toInt(); // convert to int and back removes any whitespace and \r\n etc.
+
+        int retval = -1;
+        int retval2 = -1;
+        int retval3 = -1;
+
+        // first test if the remote radio is present by trying to read a parameter from it...
+        int val = r900x_readsingle_param("RT", "S0");
+        bool linktest = false;
+        if (val >= 35) { // success
+            //message = "remote link tested OK";
+            linktest = true;
+        } else { 
+            message = "FAILED link test to REMOTE 900x radio, check settings. RT S0->"+String(val);
+        }
+
+        // don't try to enable encryption if link didn't test OK.
+        if ( linktest ) {
+
+            // disable encryption
+            if ( EE == 0 ){ 
+
+                   wiz_param_saver( "S15", "0" ); // non-returning, emits http response, saves and reboots radios after
+            }
+
+            // enable encryption - warning, a prerequisite to this succeeding is that u MUST have disabled 
+            // encryption with S15=0 and a reboot before doing this.
+            if ( EE == 1 ){ 
+
+                 // cache last-used encryption key to spiffs to display later if needed
+                 
+                if (w2.length() > 30 ) { // basic check, file should exist and have at least 30 bytes in it to be plausible
+
+                     File encfile = SPIFFS.open("/key.txt", "w");
+                     encfile.println(w2);
+                     encfile.close();
+                     swSer.println("Wrote Enc Key to /key.txt");
+
+                    // disable encryption first and reboot
+                    retval = wiz_param_helper( "S15", "0" , true); 
+                    if (retval != 200 ) {
+                        message += "FAILED to set S15=0 on one or more of the radio/s.";
+                    }
+
+                    // set key without reboot
+                    if (retval == 200 ) {  // check retval and continue to enable encryption if asked for.
+                        retval2 = wiz_param_helper( "&E", w2 , false);
+                        if (retval2 != 200 ) {
+                            message += "FAILED to set &E=xxx on one or more of the radio/s.";
+                        }
+                    } 
+
+                    // enable encryption after and reboot, AND emit HTML to user.
+                    if ((retval == 200 ) && (retval2 == 200 )) { 
+                            wiz_param_saver( "S15", "1" ); 
+                            return;
+                    }
+
+                } else {
+                    message = "FAILED requested encryption key too short. ";
+                }
+            }
+
+        }
+
+        message += "FAILED problem executing request for encryption enable/disable.";
+        setNoCacheHeaders();
+        webServer.send(203, FPSTR(kTEXTHTML), message);
+        return;
+
+    }
+    // PPMIN and PPMOUT two on same page (4):
+    if((page == 4) && webServer.hasArg("localPPMin")) {
+        //ok = true;
+        int w3 = webServer.arg("localPPMin").toInt();
+        int w4 = webServer.arg("remotePPMOUT").toInt();
+
+        int retval = -1;
+        int retval2 = -1;
+        //int retval3 = -1;
+
+        //ATS16=1
+        //RTS17=1
+        // and while we are at it, enable local STAT LED:
+        //ATS19=1 
+
+        // ... also , side effect, set ATS19=1 but ignore all its output and don't reboot.
+        r900x_savesingle_param_and_verify_more("AT", "S19", "1", false);
+
+        // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
+        retval =    r900x_savesingle_param_and_verify_more("RT", "S17", String(w4), true);
+        if ( retval < 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
+                message += "FAILED param saving to REMOTE 900x radio. RT S17->"+String(w4);
                 setNoCacheHeaders();
+                swSer.println(message);
                 webServer.send(201, FPSTR(kTEXTHTML), message);
                 return;
-            }
-            // saving to local failed, do we need to advise of that ?         
-            if ( retval2 < 0 ) {
-                swSer.println("C");
-                message = "FAIL param saving to LOCAL 900x radio  AT S3->"+String(w1);
+        }
+
+        retval2 = r900x_savesingle_param_and_verify_more("AT", "S16", String(w3), true);
+        // if it failed, retry, because the remote already succeeded and the local should too.
+        if ( retval2 < 0 ) { 
+        retval2 = r900x_savesingle_param_and_verify_more("AT", "S16", String(w3), true);
+        }
+        if ( retval2 < 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
+                message += "FAILED param saving to LOCAL 900x radio. AT S16->"+String(w3);
                 setNoCacheHeaders();
+                swSer.println(message);
                 webServer.send(202, FPSTR(kTEXTHTML), message);
                 return;
-            }
+        }
+       
+        // success, as both retval/s are now > 0
+        if ((retval > 0 ) && (retval2 > 0 )) { 
+            message = "SUCCESS param saving to LOCAL/REMOTE 900x radio. AT/RT S16/17->";
+            setNoCacheHeaders();
+            swSer.println(message);
+            webServer.send(200, FPSTR(kTEXTHTML), message);
+            return;
+        }
 
-        }   
-        message = "SUCCESS param saving to REMOTE & LOCAL 900x radio. AT S3->"+String(w1);
-        swSer.println("E");
-        setNoCacheHeaders();
-        swSer.println(message);
-        webServer.send(200, FPSTR(kTEXTHTML), message);
-        return;
+      
     }
-    if((page == 3) && webServer.hasArg("localE")) {
-        ok = true;
-        String w2 = webServer.arg("localE").c_str();
-    }
-    // two on same page (4):
-    if((page == 4) && webServer.hasArg("localPPMin")) {
-        ok = true;
-        int w3 = webServer.arg("localPPMin").toInt();
-    }
-    if((page == 4) && webServer.hasArg("remotePPMOUT")) {
-        ok = true;
-        int w4 = webServer.arg("remoteDefaultPPM").toInt();
-    }
+
+
     if((page == 5) && webServer.hasArg("remoteDefaultPPM")) {
         ok = true;
         int w5 = webServer.arg("remoteDefaultPPM").toInt();
+
+        if ( w5 == 1 ) { 
+
+             // send command to remote radio:
+             //RT&R
+            // Record default PPM stream for PPM output (vehicle side)
+            // activate PPM failsave channel settings on remote radio:
+            int retval =    r900x_savesingle_param_and_verify_more("RT", "&R", "", false);
+            if ( retval < 0 ) {  //if remote verified, then activate local 900x Network Channel (ID)  and verify
+                    message += "FAILED param saving to REMOTE 900x radio. RT &R";
+                    setNoCacheHeaders();
+                    swSer.println(message);
+                    webServer.send(201, FPSTR(kTEXTHTML), message);
+                    return;
+            }
+        }
+
     }
     if((page == 6) && webServer.hasArg("confirmtest")) {
         ok = true;
@@ -893,7 +992,9 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
 
     // the actual final form submit doesn't know its page number, but should succeed as it has all other data.
     if(page == -1) {  
-        ok = true;    
+
+        message = "Thanks, your Wizard is Completed, and all Setting Saved.";
+
     }  
 
     swSer.println("D");
@@ -1067,7 +1168,6 @@ static void handle_update_html()
 
         String message =  FPSTR(UPDATER);
         webServer.send(200, FPSTR(kTEXTHTML), message);
-
     }
 
 }

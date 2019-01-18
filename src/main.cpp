@@ -220,8 +220,9 @@ bool enter_command_mode() {
     //RFD SiK 2.65 on RFD900X R1.3
     Serial.write("\r\nATI\r\n");
     Serial.flush(); // output buffer flush
+    delay(100);
 
-    int already_commmand_mode_test = SmartSerial->expect_multi3("ATI","RFD SiK","RFD900X",50); // look for any of these
+    int already_commmand_mode_test = SmartSerial->expect_multi3("ATI","RFD SiK","RFD900X",250); // look for any of these
 
     while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
 
@@ -377,7 +378,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
         delay(1000); // time for local and remote to sync and RT values to populate.
 
-        swSer.println(F("ATZ/RTZ renooting 900x due to factory_reset_first "));
+        swSer.println(F("ATZ/RTZ rebooting 900x due to factory_reset_first "));
         cmd = prefix+"Z\r";
         Serial.write(cmd.c_str()); // reboot radio to restore non-command mode.
         Serial.flush(); // output buffer flush
@@ -396,10 +397,13 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
     //  read individial param first  ( eg ATS4? ) to see if it even needs changing
     String cmd = prefix+ParamID+"?\r\n"; // first \r\n is to end the +++ command we did above, if any.
 
-    swSer.println(cmd); // debug only
 
     // shortcurcuit for &E
     if ( ParamID == "&E" ) return -4; // not readable, for now. 
+
+    if ( ParamID == "&R" ) return -4; // not readable, for now. 
+
+    swSer.println(cmd); // debug only
 
     // here we neter a "retries" loop for approx 100ms each iteration and maxloops 5
     // because it's proven in testing that the RTS3?   and similar style commands don't 
@@ -443,9 +447,34 @@ int r900x_readsingle_param(String prefix, String ParamID) {
 
     if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
 
-    swSer.println(F("-------flush---------------"));
+    swSer.println(F("Z-------flush---------------"));
+    while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
 
-    return r900x_readsingle_param_impl( prefix, ParamID );
+    // might return negative number on error.... so add one ghetto retry here as it already has some retrues...
+    int retval =  r900x_readsingle_param_impl( prefix, ParamID );
+
+    if ( retval >= 0 ) return retval;
+
+    if ( retval < 0 ) { 
+    
+        delay(500);
+
+        // erp, should not be needed, but aparently can be...
+        String exitcmd= "ATO\r\n";
+        swSer.println(exitcmd); // debug only.
+        Serial.write(exitcmd.c_str());
+        Serial.flush(); // output buffer flush
+
+        swSer.println(F("r900x_readsingle_param-RETRY"));
+
+        if ( ! enter_command_mode_with_retries() ) { return retval ; } 
+
+        swSer.println(F("Q-------flush---------------"));
+        //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+
+        // last try, might return negative number on error, just return it.. 
+        return r900x_readsingle_param_impl( prefix, ParamID );
+    }
 
 }
 
@@ -460,88 +489,118 @@ int r900x_savesingle_param_and_verify_more(String prefix, String ParamID, String
 
     swSer.println(F("r900x_savesingle_param_and_verify"));
 
+    // sometimes we skip parts of these see below
+    bool actually_write = true;
+
+
     if ( ! enter_command_mode_with_retries() ) { return -1 ; } 
 
     swSer.println(F("X-------flush---------------"));
     while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
 
-    // might return negative number on error.... ( such as &E being empty. )
+    // might return negative number on error.... ( such as &E being empty, or &R not being standard )
     int value = r900x_readsingle_param_impl( prefix, ParamID );
     
-    // success, it's already set at that target val    
-    if (value == ParamVAL.toInt() ) { swSer.println(F("RETURN:val already set")); return 1;  } 
+    // success, it's already set at that target val  
+    // this  honors the save_and_reboot parameter by jumping to the save-and-reboot section, which it should.  
+    if (value == ParamVAL.toInt() ) { 
+        if ( save_and_reboot ) {
+            swSer.println(F("val already set, jumping to save-and-reboot anyway"));
+            actually_write = false;   //continues below
+        } else {
+            swSer.println(F("RETURN:val already set, no save/reboot requested"));
+            return 1;   // shortcurcuit and return immediately
+        }
+    } 
 
     // unreadable error... for now we try to write it anyway.
     //if ( value < 0 ) {     }
 
-    int param_write_counter = 0;
-    param_write_retries:
+    if (  actually_write ) { 
+        int param_write_counter = 0;
+        param_write_retries:
 
-    // set param to new vaue
-    String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
-    swSer.println(ParamCMD); // debug only.
-    Serial.write(ParamCMD.c_str());
-    Serial.flush(); // output buffer flush
-    bool ok = SmartSerial->expect("OK",250);  // needs to be bigger than 200.
-    swSer.println(F("7#############################################################"));
-    if ( ok ) { 
-        swSer.println(F("GOT OK from radio.\n"));
-        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
-    } else { 
+        // set param to new vaue
+        String ParamCMD= prefix+ParamID+"="+ParamVAL+"\r\n";
 
-        swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
-        param_write_counter++;
-        if ( param_write_counter < 5 ) { 
-            goto param_write_retries;
-        }
+            // overwride for special case/s ( very rare ) 
+            if (( prefix == "RT" ) && ( ParamID == "&R" )) ParamCMD = prefix+ParamID+"\r\n";
 
-        // if 5 retries exceeded, return error.
-        swSer.println(F("RETURN:no response to param set request - 5 retries exceeded")); 
-        return -2; // neg number/s mean error
-    } 
+        swSer.println(ParamCMD); // debug only.
+        Serial.write(ParamCMD.c_str());
+        Serial.flush(); // output buffer flush
+        bool ok = SmartSerial->expect("OK",500);  // needs to be bigger than 200.
+        swSer.println(F("7#############################################################"));
+        if ( ok ) { 
+            swSer.println(F("GOT OK from radio.\n"));
+            while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+        } else { 
+
+            // HACK. we don't get an OK reply from RT&E=XXXXXXXXXXXXX, just an echo 
+            //of the command and a blat of suddenly unreadable bytes and the 250ms timeout.
+            //if (( ParamID == "&E" ) && ( param_write_counter > 8 ) ) { 
+            //   return 3; // positve number = success.
+            //}
+
+            swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+            param_write_counter++;
+            if ( param_write_counter < 5 ) { 
+                goto param_write_retries;
+            }
+
+            // if 5 retries exceeded, return error.
+            swSer.println(F("RETURN:no response to param set request - 5 retries exceeded")); 
+            return -2; // neg number/s mean error
+        } 
 
 
-    if ( ! save_and_reboot ) {
-        swSer.println(F("Skipping save and reboot\nRETURN:PERFECT"));
-        return 3;
-    } 
+        if ( ! save_and_reboot ) {
+            swSer.println(F("Skipping save and reboot\nRETURN:PERFECTO"));
+            return 3;
+        } 
+    }
 
-    int param_save_counter = 0;
-    param_save_retries:
-
-    // save params AND take out of command mode via a quick reboot
-    String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
-    Serial.write(savecmd.c_str());
-    Serial.flush(); // output buffer flush
-
-   // LEDState = 0;
-   // digitalWrite(LEDGPIO,LEDState);
-    ok = SmartSerial->expect("OK",200); 
-    if ( ok ) { 
-        swSer.println(F("GOT OK Response from radio.\n"));
-        //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
+    if ( save_and_reboot )  { 
+        int param_save_counter = 0;
+        param_save_retries:
 
         // save params AND take out of command mode via a quick reboot
-        String rebootcmd = prefix+"Z\r\n"; // "ATZ\r\n"
-        Serial.write(rebootcmd.c_str());
+        String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
+        swSer.println(savecmd); // debug only.
+        Serial.write(savecmd.c_str());
         Serial.flush(); // output buffer flush
 
-        delay(150);
-        // TODO ? ok = SmartSerial->expect("RTZ",200);
-        while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point. - ie 'RTZ' response
+        // LEDState = 0;
+        // digitalWrite(LEDGPIO,LEDState);
+        bool ok = SmartSerial->expect("OK",500); 
+        if ( ok ) { 
+            swSer.println(F("GOT OK Response from radio.\n"));
+            //while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point.
 
-    } else { 
+            // save params AND take out of command mode via a quick reboot
+            String rebootcmd = prefix+"Z\r\n"; // "ATZ\r\n"
+            swSer.println(rebootcmd); // debug only.
+            Serial.write(rebootcmd.c_str());
+            Serial.flush(); // output buffer flush
 
-        swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
-        param_save_counter++;
-        if ( param_save_counter < 5 ) { 
-            goto param_save_retries;
-        }
+            delay(150);
+            // TODO ? ok = SmartSerial->expect("RTZ",200);
+            while (Serial.available() ) { Serial.read(); } // flush read buffer upto this point. - ie 'RTZ' response
 
-        // if 5 retries exceeded, return error.
-        swSer.println(F("RETURN:no response to param save request - 5 retries exceeded")); 
-        return -3;
-    } 
+        } else { 
+
+            swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+            delay(100); // might help by delaying the retry a bit.
+            param_save_counter++;
+            if ( param_save_counter < 5 ) { 
+                goto param_save_retries;
+            }
+
+            // if 5 retries exceeded, return error.
+            swSer.println(F("RETURN:no response to param save request - 5 retries exceeded")); 
+            return -3;
+        } 
+    }
 
     swSer.println(F("RETURN:PERFECT"));
     return 2;
@@ -655,6 +714,7 @@ swSer.println(F("r900x_saveparams()\n"));
 
    // save params AND maybe take out of command mode via a quick reboot
     String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
+    swSer.println(savecmd); // debug only.
     Serial.write(savecmd.c_str());
     Serial.flush(); // output buffer flush
 
@@ -668,13 +728,15 @@ swSer.println(F("r900x_saveparams()\n"));
 
           // take out of command mode via a quick reboot
             String rebootcmd = prefix+"Z\r\n"; // "ATZ\r\n"
+            swSer.println(rebootcmd); // debug only.
             Serial.write(rebootcmd.c_str());
             Serial.flush(); // output buffer flush
 
             LEDState = 0;
             digitalWrite(LEDGPIO,LEDState);
 
-            //delay(200); 
+            delay(1000); // hack to allow the radio to come back and sync after a ATZ or RTZ
+ 
             //ok = SmartSerial->expect("OK",2000);  we don't expect a response from ATZ or RTZ
     } else { 
         //trying = false; HACK
@@ -1268,6 +1330,9 @@ swSer.println(F("setup() complete"));
 
 void client_check() { 
 
+    
+    //swSer.print("."); //debug only
+
     uint8 x = wifi_softap_get_station_num();
     if ( client_count != x ) { 
         swSer.println("new client/s connected"); 
@@ -1392,9 +1457,17 @@ void handle_tcp_and_serial_passthrough() {
 //---------------------------------------------------------------------------------
 //-- Main Loop
 
+// periodic client check..
+int period = 200;
+unsigned long time_next = 0;
+ 
 void loop() {
 
-    client_check(); 
+    if(millis() > time_next){
+        time_next = millis()+period;
+        client_check();
+    }
+
 
     if (tcp_check() ) {  // if a client connects to the tcp server, stop doing everything else and handle that
         if ( tcp_passthrumode == false ) {tcp_passthrumode = true;
