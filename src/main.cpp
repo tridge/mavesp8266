@@ -403,6 +403,8 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
 
     if ( ParamID == "&R" ) return -4; // not readable, for now. 
 
+    if ( ParamID == "&F" ) return -4; // not readable, for now. 
+
     swSer.println(cmd); // debug only
 
     // here we neter a "retries" loop for approx 100ms each iteration and maxloops 5
@@ -525,6 +527,7 @@ int r900x_savesingle_param_and_verify_more(String prefix, String ParamID, String
 
             // overwride for special case/s ( very rare ) 
             if (( prefix == "RT" ) && ( ParamID == "&R" )) ParamCMD = prefix+ParamID+"\r\n";
+            if ( ParamID == "&F" ) ParamCMD = prefix+ParamID+"\r\n";
 
         swSer.println(ParamCMD); // debug only.
         Serial.write(ParamCMD.c_str());

@@ -830,6 +830,17 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         int w1 = webServer.arg("localC").toInt(); // convert to int and back removes any whitespace and \r\n etc.
         String Sw1 = String(w1);
 
+		// factory default the radio/s to (a) put them in a good state, and (b) clear any encryption key for later...
+        // disable encryption via factory default and reboot
+        int retval = wiz_param_helper( "&F", "" , true); 
+        if (retval != 200 ) {
+            message += "FAILED to factory-default radio/s with RT&F/AT&F on one or more of the radio/s.";
+		    setNoCacheHeaders();
+		    webServer.send(retval, FPSTR(kTEXTHTML), message);
+		    return;
+        }
+
+		// after a factory-default, THEN set the netid in both radio/s as the first step in the process.
         wiz_param_saver( "S3", Sw1 ); // non-returning, emits http response, saves and reboots radios after
         
     }
@@ -877,25 +888,17 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
                      encfile.close();
                      swSer.println("Wrote Enc Key to /key.txt");
 
-                    // disable encryption first and reboot
-                    retval = wiz_param_helper( "S15", "0" , true); 
+                    // enable encryption first but don't reboot
+                    retval = wiz_param_helper( "S15", "1" , false); 
                     if (retval != 200 ) {
-                        message += "FAILED to set S15=0 on one or more of the radio/s.";
+                        message += "FAILED to set S15=1 on one or more of the radio/s.";
                     }
 
-                    // set key without reboot
+                    // set key with save and  reboot
                     if (retval == 200 ) {  // check retval and continue to enable encryption if asked for.
-                        retval2 = wiz_param_helper( "&E", w2 , false);
-                        if (retval2 != 200 ) {
-                            message += "FAILED to set &E=xxx on one or more of the radio/s.";
-                        }
+                        wiz_param_saver( "&E", w2 );
                     } 
 
-                    // enable encryption after and reboot, AND emit HTML to user.
-                    if ((retval == 200 ) && (retval2 == 200 )) { 
-                            wiz_param_saver( "S15", "1" ); 
-                            return;
-                    }
 
                 } else {
                     message = "FAILED requested encryption key too short. ";
