@@ -321,9 +321,9 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
     // untested- implement factory_reset_first boolean
     if ( factory_reset_first ) { 
-        swSer.print(F("attempting factory reset.... &W and &F ... \n"));
+        swSer.print(F("attempting factory reset.... &F and &W ... \n"));
         //String cmd = prefix+"&F\r"+
-        String factorycmd = prefix+"&W\r\n"+prefix+"&F\r\n"; 
+        String factorycmd = prefix+"&F\r\n"+prefix+"&W\r\n"; 
         Serial.write(factorycmd.c_str());
         Serial.flush(); // output buffer flush
         //swSer.print(F("----------------------------------------------"));
@@ -351,16 +351,18 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     }
 
     // as user experience uses the SPIFFS .txt to render the html page, we cleanup an old one if we've been asked
-    // to get fresh params, even if we cant replace it, as the *absense* of it means the remote radio is no longer connected.
+    // to get fresh params, even if we cant replace it, as the *absense* of it means the remote radio is 
+	// no longer connected.
     SPIFFS.remove(filename); 
 
     
-    // also write params to spiffs, for user record:
+    // now write params to spiffs, for user record:
     if ( data.length() > 300 ) { // typical file length is around 400chars 
         f = SPIFFS.open(filename, "w");
         f.print(data);  //actual parm data.
 
-        // tack encryption key onto the end of the param file, if it exists.
+        // tack encryption key onto the end of the param file, if it exists, instead of read from remote radio
+		// as we can't do that right now. - TODO.
         File e = SPIFFS.open("/key.txt", "r");
         String estr = "&E:ENCRYPTION_KEY="+e.readString();// entire file, includes /r/n on end.
         
@@ -374,6 +376,42 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         swSer.println(F("didn't write param file, as it contained insufficient data"));
     }
 
+
+	bool got_vers = false; // assume this to start with 
+	if ( 1 ) { 
+
+		String vercmd = prefix+"I\r\n";  //ATI or RTI
+		swSer.print(vercmd.c_str()); // for debug only
+		Serial.write(vercmd.c_str());
+		Serial.flush(); // output buffer flush
+
+		String vers = "RFD SiK"; //starts with this...
+		bool ok = SmartSerial->expect_s(vers,1500);  // we really want to see 'RFD SiK' here, 
+
+		if ( ok ) { 
+		    swSer.println(F("\tGOT SiK Response from radio.\n"));
+
+			// this line *may* have started with 'RFD SiK' ( we matched on the SiK above), and end with '2.65 on RFD900X R1.3' 
+			while (Serial.available() ) { char t = Serial.read();  swSer.print(t); vers += t; } // flush read buffer upto this point, displaying it for posterity ( it has version info )
+
+			if (vers.indexOf(" on ") > 10  ) { //"RFD SiK Q.QQ on RFDXXXX RZ.Z"
+				swSer.print(F("VERSION STRING FOUND:"));
+				swSer.println(vers);
+
+				// save version string to a file for later use by the webserver to present to the user.
+				String vf = "/r900x_version.txt";
+				if (filename == "/r900x_params_remote.txt" ) {vf = "/r900x_version_remote.txt";}
+				File v = SPIFFS.open(vf, "w"); 
+				v.print(vers);
+				v.close();
+				got_vers = true;
+			}
+
+		} else {
+		    swSer.println(F("\tFAILED-TO-GET SiK Response from radio.\n"));
+		} 
+	}
+	
     if ( factory_reset_first ) { 
 
         delay(1000); // time for local and remote to sync and RT values to populate.
@@ -398,11 +436,9 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
     String cmd = prefix+ParamID+"?\r\n"; // first \r\n is to end the +++ command we did above, if any.
 
 
-    // shortcurcuit for &E
+    // shortcurcuit for &E etc
     if ( ParamID == "&E" ) return -4; // not readable, for now. 
-
     if ( ParamID == "&R" ) return -4; // not readable, for now. 
-
     if ( ParamID == "&F" ) return -4; // not readable, for now. 
 
     swSer.println(cmd); // debug only
@@ -442,7 +478,7 @@ int r900x_readsingle_param_impl( String prefix, String ParamID ) {
 }
 
 //-------------------------------------------
-// no prerequisite version of the above function.
+// no prerequisite version of the above function. with more retries. 
 int r900x_readsingle_param(String prefix, String ParamID) { 
 
     swSer.println(F("r900x_readsingle_param"));
@@ -792,7 +828,7 @@ bool r900x_command_mode_sync() {
                 continue;
             } 
 
-            // this line *may* have started with 'RFD SiK' ( we matched on the SiK above), and end with '2.65 on RFD900X R1.3' 
+/*            // this line *may* have started with 'RFD SiK' ( we matched on the SiK above), and end with '2.65 on RFD900X R1.3' 
             String vers = "RFD SiK";
             while (Serial.available() ) { char t = Serial.read();  swSer.print(t); vers += t; } // flush read buffer upto this point, displaying it for posterity ( it has version info )
 
@@ -805,7 +841,7 @@ bool r900x_command_mode_sync() {
                 v.print(vers);
                 v.close();
             }
-
+*/
 
 
             swSer.println(F("\t\tSending AT&UPDATE to radio...\n"));

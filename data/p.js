@@ -37,17 +37,17 @@ function saveform(tableid, tourl) {
 
   var xhttp = new XMLHttpRequest();
 
-  document.getElementById("sub").value = tableid + " Processing, Please Wait...";
+  document.getElementById("sub").innerHTML = tableid + " Processing, Please Wait...";
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("sub").value = tableid + " Params Saved.";
+      document.getElementById("sub").innerHTML = tableid + " Params Saved.";
     }
     if (this.readyState == 4 && this.status == 201) {
-      document.getElementById("sub").value = tableid + " Params Saved and Activated.";
+      document.getElementById("sub").innerHTML = tableid + " Params Saved and Activated.";
     }
     if (this.readyState == 4 && this.status == 202) {
-      document.getElementById("sub").value = tableid + " Params Saved but not Activated, your modem might not be configured as-expected";
+      document.getElementById("sub").innerHTML = tableid + " Params Saved but not Activated, your modem might not be configured as-expected";
     }
   };
 

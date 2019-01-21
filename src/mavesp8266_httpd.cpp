@@ -335,9 +335,18 @@ extern String mac_ap_s;
     // try to open a version file for the 900x inside the txmod, continue without it anyway.
     File v = SPIFFS.open("/r900x_version.txt", "r");
     if ( v ) { 
-        message += "900x Modem Version: ";
+        message += "Internal 900x Modem Version: ";
         message += v.readString();
         v.close();
+    }
+    message += "<br>\n";
+
+    // try to open a version file for the 900x outside the txmod, continue without it anyway.
+    File v2 = SPIFFS.open("/r900x_version_remote.txt", "r");
+    if ( v2 ) { 
+        message += "External 900x Modem Version: ";
+        message += v2.readString();
+        v2.close();
     }
     message += "<br>\n";
 
@@ -515,10 +524,11 @@ extern bool tcp_passthrumode;
     } else { 
     message += "<font color=red>NOT In UDP(mavlink) mode right now</font><br>\n";
     }
+    message += "<font color=green>To connect your GCS in UDP(mavlink) mode, please open a UDP port on port number:";
 
     message += "<p>Comm Status</p><table><tr><td width=\"240\">Packets Received from GCS</td><td>";
 
-    message += "<font color=green>To connect your GCS in UDP(mavlink) mode, please open a UDP port on port number:";
+
     message += getWorld()->getParameters()->getWifiUdpHport();
     message += "</font><br></p>\n";
 

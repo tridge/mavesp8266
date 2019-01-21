@@ -19,13 +19,21 @@
 </table>
 <p>
 <input type='submit' id='fresh' value='Load Fresh Params' onclick="reload_fresh_params(); return false;" ><br>
-[CAUTION: If your remote params list does not show, press this again. You must be sure you have a remote radio synced. ( ie both radios solid green LED )
+CAUTION: If your remote params list does not show, press this again. You must be sure you have a remote radio synced ( ie both radios solid green LED ), and if encryption is used then it must be configured the same on both radios. 
 <p>
-<input type='submit' id='sub' value='Save Params' onclick="saveforms(); return false;" ><br>
-[CAUTION - saving the incorrect settings here may result in loss of conenction between the radios]
+<input type='submit' id='sub2' value='Save Params' onclick="saveforms(); return false;" >&nbsp;<span id=sub ></span><br>
+CAUTION - saving the incorrect settings here may result in loss of conenction between the radios.
 <p>
+<!--
 <input type='submit' id='sub' value='Factory Default' onclick="factory(); return false;" ><br>
-[CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXMOD]<br>
+CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXMOD.<br>
+-->
+<br>
+TIPs: <br>
+This page shows the last-known settings from the radio/s by default, if you have changed the settings elsewhere, such as with AT commands, or run the 'wizard', then you will want to pres the 'Load Fresh Params' button to get up-to-date information here. <br>
+<p>
+If you have your remote radio turned off, or disconnected, pressing 'Load Fresh Params' will allow you to display and save the local 900x radio settings, but you will have to ensure your remote 900x radio is configured correctly on your own.<br>
+<p>
 </body>
 </html>
 
