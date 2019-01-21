@@ -62,19 +62,31 @@ function saveform(tableid, tourl) {
 
             stuff = id_name.split(":");
             stuff2 = stuff[1].split("=");
+
             //x:y=z
             id=stuff[0];
+			name=stuff2[0];
+			//value=stuff2[1];
+
+			// id2 is the one we put in the payload as a string
+			// id is the name we use for the html field
+			id2 = id;
 
             if ( tourl == "/r900x_params_remote.txt" ) { 
                 // add a  'R' to the start of the id 
                 id = "R" + id; 
             } 
+			
+			
+            if (id == "R&amp;E") { id = "R&E"; id2="&E"; } 
+            if (id == "&amp;E")  { id = "&E"; id2="&E";} 
 
-            name=stuff2[0];
-            f = document.getElementById(id);
+            f = document.getElementById(id2);
+
+			
             if ( f == null ) continue; // skip invalid fields if not present
             value = document.getElementById(id).value
-            payload = payload + id_name + value + "\r\n";
+            payload = payload + id2+":"+name+"="+value + "\r\n";
         
     }
 
@@ -203,6 +215,7 @@ function loadform( tableid, fromurl ) {
             name=stuff2[0];
             value=stuff2[1];
 
+
             // javascript to make this: <tr><td>S0:FORMAT=<td><input type='text' id='S0' value='35'></tr>
             var table = document.getElementById(tableid);
             var tr = document.createElement("tr");
@@ -213,11 +226,20 @@ function loadform( tableid, fromurl ) {
             var mi = document.createElement("input");
             mi.setAttribute('type', 'text');
             mi.setAttribute('value', value);
+
+
             if ( fromurl == "/r900x_params_remote.txt" ) { 
                 mi.setAttribute('id', "R"+id);
             } else { 
                 mi.setAttribute('id', id);
             }
+
+			// make encryption fields read-only
+			if ( id == "&E" ) {
+				mi.readOnly = true;
+				mi.style.backgroundColor = "lightgray";
+			}
+
 
             td1.appendChild(txt);
             td2.appendChild(mi);

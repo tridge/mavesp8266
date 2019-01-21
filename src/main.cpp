@@ -361,7 +361,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         f.print(data);  //actual parm data.
 
         // tack encryption key onto the end of the param file, if it exists.
-        File e = SPIFFS.open("/key.txt", "w");
+        File e = SPIFFS.open("/key.txt", "r");
         String estr = "&E:ENCRYPTION_KEY="+e.readString();// entire file, includes /r/n on end.
         
         if (estr.length() > 30 && e) { // basic check, file should exist and have at least 30 bytes in it to be plausible

@@ -125,7 +125,10 @@ button:hover {
   <div class="tab">Power on Radios and Link them:
     <p><button type="button" id="cc" onclick="">Please ensure both radios (900x) have a solid GREEN LED, then press Next.<br><br>We will test the link to be sure.... <br></button></p>
   </div>
-  <div class="tab">Radio NetworkID change, matching in both Local and Remote radio:
+  <div class="tab">Radio NetworkID change, matching in both Local and Remote radio:<br><p>
+					 This step will also temporarily disable any encryption<br>
+					 and do a factory-default on both radios prior to setting<br>
+					your preferred NetID.<br>
     <p><input placeholder="Local/Remote Radio NetworkID ...(0-255)" oninput="this.className = ''" name="localC" id="localC"></p>
     <p><button type="button" id="cc" onclick="choosenetid()">I don't know, just pick one for me.</button></p>
   </div>

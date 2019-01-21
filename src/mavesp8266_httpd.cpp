@@ -830,9 +830,20 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         int w1 = webServer.arg("localC").toInt(); // convert to int and back removes any whitespace and \r\n etc.
         String Sw1 = String(w1);
 
+        // disable encryption first and reboot 
+        int retval = wiz_param_helper( "S15", "0" , true); 
+		delay(500);
+        if (retval != 200 ) {
+            message += "FAILED to set S15=0 on one or more of the radio/s.";
+		    setNoCacheHeaders();
+		    webServer.send(retval, FPSTR(kTEXTHTML), message);
+		    return;
+        }
+
 		// factory default the radio/s to (a) put them in a good state, and (b) clear any encryption key for later...
         // disable encryption via factory default and reboot
-        int retval = wiz_param_helper( "&F", "" , true); 
+        retval = wiz_param_helper( "&F", "" , true); 
+		delay(500);
         if (retval != 200 ) {
             message += "FAILED to factory-default radio/s with RT&F/AT&F on one or more of the radio/s.";
 		    setNoCacheHeaders();
