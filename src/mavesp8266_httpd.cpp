@@ -524,13 +524,13 @@ extern bool tcp_passthrumode;
     } else { 
     message += "<font color=red>NOT In UDP(mavlink) mode right now</font><br>\n";
     }
+
     message += "<font color=green>To connect your GCS in UDP(mavlink) mode, please open a UDP port on port number:";
+    message += getWorld()->getParameters()->getWifiUdpHport();
+    message += "</font><br></p>\n";
 
     message += "<p>Comm Status</p><table><tr><td width=\"240\">Packets Received from GCS</td><td>";
 
-
-    message += getWorld()->getParameters()->getWifiUdpHport();
-    message += "</font><br></p>\n";
 
     message += gcsStatus->packets_received;
     message += "</td></tr><tr><td>Packets Sent to GCS</td><td>";

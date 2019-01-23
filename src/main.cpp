@@ -1172,7 +1172,7 @@ String mac2String(byte ar[]){
   for (byte i = 0; i < 6; ++i)
   {
     char buf[3];
-    sprintf(buf, "%2X", ar[i]);
+    sprintf(buf, "%02X", ar[i]);
     s += buf;
     if (i < 5) s += '-'; // traditionally a :, but we want a - in this case
   }
@@ -1184,7 +1184,7 @@ String half_mac2String(byte ar[]){
   for (byte i = 3; i < 6; ++i)
   {
     char buf[3];
-    sprintf(buf, "%2X", ar[i]);
+    sprintf(buf, "%02X", ar[i]);
     s += buf;
     if (i < 5) s += '-'; // traditionally a :, but we want a - in this case
   }
