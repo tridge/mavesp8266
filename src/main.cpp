@@ -322,14 +322,30 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     // untested- implement factory_reset_first boolean
     if ( factory_reset_first ) { 
         swSer.print(F("attempting factory reset.... &F and &W ... \n"));
-        //String cmd = prefix+"&F\r"+
-        String factorycmd = prefix+"&F\r\n"+prefix+"&W\r\n"; 
-        Serial.write(factorycmd.c_str());
-        Serial.flush(); // output buffer flush
-        //swSer.print(F("----------------------------------------------"));
-        bool b = SmartSerial->expect("OK",500); b = !b; // avoid compiler warnings only.
-        while (Serial.available() ) { Serial.read();  } // flush read buffer upto this point and discard
+
+        String factorycmd = prefix+"&F\r\n";
+        Ser9x.write(factorycmd.c_str());
+        Ser9x.flush(); // output buffer flush
+        bool b = SmartSerial->expect("OK",100); 
+        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+
+        String factorycmd2 = prefix+"&W\r\n"; 
+        Ser9x.write(factorycmd2.c_str());
+        Ser9x.flush(); // output buffer flush
+        bool b2 = SmartSerial->expect("OK",100); 
+        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+
         swSer.print(F("...attempted factory reset.\n"));
+    }
+
+    if (filename == "/r900x_params.txt" ) { 
+
+        String led_on_cmd2 = "ATS19=1\r\n"; 
+        Ser9x.write(led_on_cmd2.c_str());
+        Ser9x.flush(); // output buffer flush
+        bool b3 = SmartSerial->expect("OK",100);
+        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+        
     }
 
     // TODO get version info here from local and/or remote modem with an AT command
