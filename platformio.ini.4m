@@ -24,7 +24,7 @@
 build_flags = !echo "-DPIO_SRC_REV="$(git rev-parse HEAD) "-DPIO_BUILD_DATE="$(date +%%Y-%%m-%%d) "-DPIO_BUILD_TIME="$(date +%%H:%%M:%%S)
 
 [env:esp12e]
-platform = espressif8266
+platform = espressif8266@1.8.0
 framework = arduino
 board = esp12e
 # some early dev/test boards only had 2m:
