@@ -324,16 +324,16 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         swSer.print(F("attempting factory reset.... &F and &W ... \n"));
 
         String factorycmd = prefix+"&F\r\n";
-        Ser9x.write(factorycmd.c_str());
-        Ser9x.flush(); // output buffer flush
+        Serial9x.write(factorycmd.c_str());
+        Serial9x.flush(); // output buffer flush
         bool b = SmartSerial->expect("OK",100); 
-        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+        while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
 
         String factorycmd2 = prefix+"&W\r\n"; 
-        Ser9x.write(factorycmd2.c_str());
-        Ser9x.flush(); // output buffer flush
+        Serial9x.write(factorycmd2.c_str());
+        Serial9x.flush(); // output buffer flush
         bool b2 = SmartSerial->expect("OK",100); 
-        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+        while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
 
         swSer.print(F("...attempted factory reset.\n"));
     }
@@ -341,10 +341,10 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     if (filename == "/r900x_params.txt" ) { 
 
         String led_on_cmd2 = "ATS19=1\r\n"; 
-        Ser9x.write(led_on_cmd2.c_str());
-        Ser9x.flush(); // output buffer flush
+        Serial9x.write(led_on_cmd2.c_str());
+        Serial9x.flush(); // output buffer flush
         bool b3 = SmartSerial->expect("OK",100);
-        while (Ser9x.available() ) { Ser9x.read();  } // flush read buffer upto this point and discard
+        while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
         
     }
 
