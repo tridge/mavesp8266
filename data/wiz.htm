@@ -114,7 +114,7 @@ button:hover {
   
   <font size=6>Tasks List:  &#10004;</font>
   <div id=r0 class="task"><div class="alignleft">Power on Radios and Link them</div><div id=t0 class="alignright">TODO &#65794;</div></div><p><p>
-  <div id=r1 class="task"><div class="alignleft">Radio NetworkID change</div><div id=t1 class="alignright">TODO &#65794;</div></div><p><p>
+  <div id=r1 class="task"><div class="alignleft">Factory Defaults, and setting Radio NetworkID</div><div id=t1 class="alignright">TODO &#65794;</div></div><p><p>
   <div id=r2 class="task"><div class="alignleft">Encryption</div><div id=t2 class="alignright">TODO &#65794;</div></div><p><p>
   <div id=r3 class="task"><div class="alignleft">Enable PPM passthru</div><div id=t3 class="alignright">TODO &#65794;</div></div><p><p>
   <div id=r4 class="task"><div class="alignleft">Set PPM failsafe settings</div><div id=t4 class="alignright">TODO &#65794;</div></div><p><p>
@@ -122,13 +122,20 @@ button:hover {
   
     
   <!-- One "tab" for each step in the form: -->
-  <div class="tab">Power on Radios and Link them:
-    <p><button type="button" id="cc" onclick="">Please ensure both radios (900x) have a solid GREEN LED, then press Next.<br><br>We will test the link to be sure.... <br></button></p>
+  <div class="tab">Power on 900x Radios and Link them.<br>
+  <br>
+  Please ensure both radios (900x) have a solid GREEN LED, then press Next and we will test the link to be sure...<br>
+  <br>
+<br>
   </div>
-  <div class="tab">Radio NetworkID change, matching in both Local and Remote radio:<br><p>
-					 This step will also temporarily disable any encryption<br>
-					 and do a factory-default on both radios prior to setting<br>
-					your preferred NetID.<br>
+  <div class="tab">Factory Defaults, and setting Radio NetworkID:<br><p>
+           <br>
+					 This step wil do a factory-default on both radios first.<br><br>
+					 And as a result will temporarily disable any PPM passthru, network comms, encryption<br>
+					 and any previous custom settings you had during the process, but the rest of the wizard will restore them.  <br>
+					 <br>
+					 After the factory-reset, it will then set your preferred NetID.<br>
+					 <br>
     <p><input placeholder="Local/Remote Radio NetworkID ...(0-255)" oninput="this.className = ''" name="localC" id="localC"></p>
     <p><button type="button" id="cc" onclick="choosenetid()">I don't know, just pick one for me.</button></p>
   </div>
@@ -465,5 +472,6 @@ window.addEventListener("load", function () {
 
 </body>
 </html>
+
 
 
