@@ -332,6 +332,15 @@ extern String mac_ap_s;
     cache.print(message); 
     message = "";
 
+extern IPAddress  localIP;
+
+    message += "TXMOD IP Address:";
+    message += localIP.toString(); 
+    message += "<br>\n";
+
+    cache.print(message); 
+    message = "";
+
     // try to open a version file for the 900x inside the txmod, continue without it anyway.
     File v = SPIFFS.open("/r900x_version.txt", "r");
     if ( v ) { 
