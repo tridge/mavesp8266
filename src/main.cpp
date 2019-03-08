@@ -327,12 +327,14 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         Serial9x.write(factorycmd.c_str());
         Serial9x.flush(); // output buffer flush
         bool b = SmartSerial->expect("OK",100); 
+        (void)b; // compiler unsed variable warning otherwise 
         while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
 
         String factorycmd2 = prefix+"&W\r\n"; 
         Serial9x.write(factorycmd2.c_str());
         Serial9x.flush(); // output buffer flush
         bool b2 = SmartSerial->expect("OK",100); 
+        (void)b2; // compiler unsed variable warning otherwise 
         while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
 
         swSer.print(F("...attempted factory reset.\n"));
@@ -344,6 +346,8 @@ int r900x_getparams(String filename, bool factory_reset_first) {
         Serial9x.write(led_on_cmd2.c_str());
         Serial9x.flush(); // output buffer flush
         bool b3 = SmartSerial->expect("OK",100);
+        (void)b3; // compiler unsed variable warning otherwise 
+
         while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
         
     }
@@ -393,7 +397,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     }
 
 
-	bool got_vers = false; // assume this to start with 
+//	bool got_vers = false; // assume this to start with 
 	if ( 1 ) { 
 
 		String vercmd = prefix+"I\r\n";  //ATI or RTI
@@ -420,7 +424,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 				File v = SPIFFS.open(vf, "w"); 
 				v.print(vers);
 				v.close();
-				got_vers = true;
+				//got_vers = true;
 			}
 
 		} else {
@@ -529,7 +533,7 @@ int r900x_readsingle_param(String prefix, String ParamID) {
         // last try, might return negative number on error, just return it.. 
         return r900x_readsingle_param_impl( prefix, ParamID );
     }
-
+    return retval; // never reached but removes compiler warning
 }
 
 //-------------------------------------------

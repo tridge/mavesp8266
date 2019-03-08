@@ -753,6 +753,7 @@ int wiz_param_helper( String ParamID, String ParamVAL, bool save_and_reboot  ) {
         if ( retval2 < 0 ) {
             return 202;
         }
+    return -1; //should never be returned, but needed to quieten compiler warnings.
 } 
 //---------------------------------------------------------------------------------
 // tries to save to remote first, and if that works, tries twice to save to local.
@@ -883,8 +884,8 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         int EE = webServer.arg("localEE").toInt(); // convert to int and back removes any whitespace and \r\n etc.
 
         int retval = -1;
-        int retval2 = -1;
-        int retval3 = -1;
+        //int retval2 = -1;
+        //int retval3 = -1;
 
         // first test if the remote radio is present by trying to read a parameter from it...
         int val = r900x_readsingle_param("RT", "S0");
