@@ -3,3 +3,9 @@ platformio.sublime*
 platformio.pro*
 tests
 research
+
+\.vscode/
+
+*.bin
+
+data\.bak/

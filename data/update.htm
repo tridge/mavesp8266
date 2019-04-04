@@ -69,16 +69,6 @@ function change_detector() {
     if ( which == 3 ) { file = file3; action = "/edit"; name = "update"; filename = 'RFDSiK900x.bin'; 
                         filenamestart = 'RFDSiK'; filenameend = '900x.bin';} 
 
-	// Allowed types
-	var mime_types = [ 'application/octet-stream' ]; // eg 'image/jpeg', 'image/png' ];
-	
-	// Validate MIME type
-	if(mime_types.indexOf(file.type) == -1) {
-		alert('Error : Incorrect file type');
-		alert(file.type);
-		return;
-	}
-
 	// Max 4 Mb allowed
 	if(file.size > 4*1024*1024) {
 		alert('Error : Exceeded size 4MB');
