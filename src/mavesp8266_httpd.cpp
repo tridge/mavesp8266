@@ -53,12 +53,16 @@
 
 extern SoftwareSerial swSer;
 
+#define DBG_OUTPUT_PORT swSer
+
 const char PROGMEM kTEXTPLAIN[]  = "text/plain";
 const char PROGMEM kTEXTHTML[]   = "text/html";
 const char PROGMEM kACCESSCTL[]  = "Access-Control-Allow-Origin";
 
 const char PROGMEM kUPLOADFORM[] = "";
-const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>RFDesign TXMOD</title><link href='/s.css' rel='stylesheet'></head><body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>";
+const char PROGMEM kHEADER[]     = "<!doctype html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><link href='s.css' rel='stylesheet'></head><body><div class='hd'><img src='logo.png'/><h1><a href='/'>TXMOD</a></h1></div><div class='b f'>";
+const char PROGMEM kFOOTER[]     = "</div></body></html>";
+const char PROGMEM kNOTFOUND[]   = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><link rel='stylesheet' href='s.css'><script src='p.js'></script></head><body><div class='hd'><h1><a href='/'>TXMOD</a></h1></div><div class='b f'><h2>File not found</h2><p>Try uploading the SPIFFS system to recover this missing file.</p></div></body></html>";
 
 const char PROGMEM kBADARG[]     = "BAD ARGS";
 const char PROGMEM kAPPJSON[]    = "application/json";
@@ -150,7 +154,6 @@ void handle_upload() {
 //---------------------------------------------------------------------------------
 
 // push some notification/s during the firmware update through the soft-serial port...
-#define DEBUG_SERIAL swSer
 
 void handle_upload_status() {
     bool success  = true;
@@ -216,6 +219,7 @@ void handle_upload_status() {
 //---------------------------------------------------------------------------------
 void handle_getParameters()
 {
+    DBG_OUTPUT_PORT.println("handle_getParameters()");
     String message = FPSTR(kHEADER);
     message += "<p>TXMOD Parameters</p><table><tr><td width=\"240\">Name</td><td>Value</td></tr>";
     for(int i = 0; i < MavESP8266Parameters::ID_COUNT; i++) {
@@ -273,7 +277,6 @@ String getContentType(String filename) {
   return "text/plain";
 }
 
-#define DBG_OUTPUT_PORT swSer
 	
 // by storing all the big files ( especially javascript ) in SPIFFS as .gz, we can save a bunch of space easily.
 // but this can present either form to the user
@@ -301,128 +304,131 @@ bool handleFileRead(String path) {
 //---------------------------------------------------------------------------------
 static void handle_root()
 {
-
     File cache = SPIFFS.open("/index.cache.htm", "w");
+    String message = "";
+    String int_rfd_sw_ver = "";
+    String rem_rfd_sw_ver = "";
+    String realSizeMB = "";
+    extern String mac_s;
+    extern String realSize;
+    extern bool tcp_passthrumode;
+    extern IPAddress localIP;
 
-    String message = FPSTR(kHEADER);
-    message += "TXMOD Software Version: RFD-";
-    char vstr[30];
-    snprintf(vstr, sizeof(vstr), "%u.%u.%u", MAVESP8266_VERSION_MAJOR, MAVESP8266_VERSION_MINOR, MAVESP8266_VERSION_BUILD);
-    message += vstr;
-    message += "<br>\n";
-    message += "Git Version: ";
-    message += GIT_VERSION_STRING;
-    message += "<br>\n";
-    message += "Build Date: ";
-    message += BUILD_DATE_STRING;
-    message += " ";
-    message += BUILD_TIME_STRING; 
-    message += "<br>\n";
-
-extern String mac_s;
-extern String mac_ap_s;
-
-    message += "STA MAC Address:";
-    message += mac_s; 
-    message += "<br>\n";
-    message += "AP MAC Address:";
-    message += mac_ap_s; 
-    message += "<br>\n";
-
-    cache.print(message); 
-    message = "";
-
-extern IPAddress  localIP;
-
-    message += "TXMOD IP Address:";
-    message += localIP.toString(); 
-    message += "<br>\n";
-
-    cache.print(message); 
-    message = "";
-
-    // try to open a version file for the 900x inside the txmod, continue without it anyway.
+    // try to open a version file for the 900x inside the TXPOLE, continue without it anyway.
     File v = SPIFFS.open("/r900x_version.txt", "r");
     if ( v ) { 
-        message += "Internal 900x Modem Version: ";
-        message += v.readString();
+        int_rfd_sw_ver = v.readString();
         v.close();
     }
-    message += "<br>\n";
 
-    // try to open a version file for the 900x outside the txmod, continue without it anyway.
-    File v2 = SPIFFS.open("/r900x_version_remote.txt", "r");
-    if ( v2 ) { 
-        message += "External 900x Modem Version: ";
-        message += v2.readString();
-        v2.close();
+    // try to open a version file for the 900x outside the TXPOLE, continue without it anyway.
+    v = SPIFFS.open("/r900x_version_remote.txt", "r");
+    if ( v ) { 
+        rem_rfd_sw_ver = v.readString();
+        v.close();
     }
-    message += "<br>\n";
-
-extern String realSize;
 
     if ( realSize == "4194304" ) { 
-        message += "Your Flash-Size is 4M.<p>\n";
+        realSizeMB = "4MB";
+    }
+    else if ( realSize == "2097152" ) { 
+        realSizeMB = "2MB";
+    }
+    else
+    { 
+        realSizeMB = realSize+"B";
     }
 
-    if ( realSize == "2097152" ) { 
-        message += "Your Flash-Size is 2M.<p>\n";
-    }
-    if (( realSize != "2097152" ) && ( realSize != "4194304" )) { 
-        message += "Your Flash Size is weird.  It's not 2Meg or 4Meg. Reported Size: "+realSize+"<p>\n";
-    }
+    char vstr[30];
+    snprintf(vstr, sizeof(vstr), "%u.%u.%u", MAVESP8266_VERSION_MAJOR, MAVESP8266_VERSION_MINOR, MAVESP8266_VERSION_BUILD);
+    unsigned long up_time_s = millis() / 1000;
+    int days, hrs, min, sec;
+    const int one_min_in_s = 60;
+    const int one_hr_in_s = 60*one_min_in_s;
+    const int one_day_in_s = 24*one_hr_in_s;
+    days = (int)(up_time_s/one_day_in_s); 
+    hrs = (up_time_s-(days*one_day_in_s))/one_hr_in_s;
+    min = (up_time_s-(days*one_day_in_s)-(hrs*one_hr_in_s))/one_min_in_s;
+    sec = (up_time_s-(days*one_day_in_s)-(hrs*one_hr_in_s)-(min*one_min_in_s));    
 
-    message += "<p>\n";
+    String up_time_str = "";
+    if (days) up_time_str += String(days)+" days ";
+    if (hrs) up_time_str += String(hrs)+"h ";
+    if (min) up_time_str += String(min)+"min ";
+    if (sec) up_time_str += String(sec)+"s ";
 
-    cache.print(message); 
-    message = "";
+    String device_info = "<p>Software Version: <i>" + String(vstr) + "</i><br/>";
+        /*device_info += "GIT commit: <i>" + String(GIT_VERSION_STRING) + "</i><br/>";*/
+        device_info += "Build date: <i>" + String(BUILD_DATE_STRING) + " " + String(BUILD_TIME_STRING) + "</i><br/>";
+        device_info += "Internal modem version: <i>" + int_rfd_sw_ver + "</i><br/>";
+        device_info += "Remote modem version: <i>" + rem_rfd_sw_ver + "</i><br/>";
+        device_info += "Flash-Size: <i>" + realSizeMB + "</i><br/>";
+        device_info += "Up time: <i>" + up_time_str + "</i></p>";
 
+    String op_mode = tcp_passthrumode ? "TCP port 23" : "UDP port " + String(getWorld()->getParameters()->getWifiUdpHport());
+    String wifi_mode = getWorld()->getParameters()->getWifiMode() == WIFI_MODE_AP ? "Access Point" : "Station";
 
+    String net_info = "<p>Local IP address: " + localIP.toString() + "<br/>";
+        net_info += "MAC Address: " + mac_s + "<br/>";
+        net_info += "GCS mode: " + op_mode + "<br/>";
+        net_info += "WiFi mode: " + wifi_mode + "<br/>";
+        net_info += "</p>";
+
+    String dictionary[][2] ={
+        {"$device_info$",device_info},
+        {"$net_info$",net_info}};
 
     // if we have an index.html in spiffs, build a cahce based on that, otherwise use a basic version that's included below.
     // CAUTION: this cache to spiffs is becasue of a breakdown if the resulting index.htm we send is more than abut 6k in size
     // but could be made to work on bigger files if we write the above to spiffs as (say) index.cache.htm, then 
     //sent the result with handleFileRead("/index.cache.htm"). 
     File f = SPIFFS.open("/index.htm", "r");
-    if ( f ) { 
-        message += f.readString();
+    if (f.size() != 0) { 
+        message = f.readString();
         f.close();
     } 
+    else
+    {
+        message = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'>";
+        message += "<style>body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1 {font-weight:normal}h2{font-size:20px;font-weight:normal;margin:0 0 15px 0;width:100%}";
+        message += "p {font-size:12px;font-weight:normal;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b {margin:0 0 15px 0;background-color: #ffffff;padding:15px}.hd{margin: 10px 0}.b a, .b a:hover, .b a:active, .b a:visited, .btn {background-color:transparent;font-size: 10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border: 1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block;}.b a:hover, .btn:hover {background-color:#D7EDFF;}";
+        message += ".ct {display:inline-block;width:auto}.c:after,.c:before,.r:after,.r:before{content:'';display:table;clear:both}.cl{float:left;width:100%}@media (min-width:900px){.h{width:392px} .l{margin-right:16px}}.c{padding:0.01em 16px}";
+        message += ".bt{height:90px;color:#fff}.rd{background-color:#f44242}.gr{background-color:#41f47f}.bt img{float:left;padding:0 20 0 10px;height:85px;margin:0 10px 0 0}.bt h1{margin:5px 0}.bt a{text-align:right;clear:both;color:#fff;border:1px solid #fff;float:right}.bt a:hover, .bt a:active, .bt a:visited{background-color:rgba(255,255,255,0.2);border:1px solid #fff;color:#fff}</style>";
+        message += "</head><body><div class='hd'><h1><a href='/'>TXMOD</a></h1></div><div class='cl h ct l'><div class='b'><h2>Device Info</h2>$device_info$</div><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>";
+        message += "<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div></div>";
+        message += "<div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>";
+        message += "<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div>";
+        message += "</div></body></html>";
+    }
+    
+    for(int i = 0; i < 2; i++)
+    {
+        message.replace(dictionary[i][0], dictionary[i][1]);
+    }
 
     cache.print(message); 
-    message = "";
-
     cache.close(); // close index.cache.htm
-
  
     // try to render /index.cache as-is, otherwise fallback to this more minimal static version... 
     if (!handleFileRead("/index.cache.htm")) {
-    
-        String message = FPSTR(kHEADER);
-        message += "<ul>\n";
-        message += "<li><a href='/getstatus'>Get Status ( UDP/Mavlink mode )</a>\n";
-        message += "<li><a href='/getstatus_tcp'>Get Status (TCP/passthrough mode )</a>\n";
-        message += "<li><a href='/setup'>View/Edit WiFi/Network Setup</a>\n";
-        message += "<li><a href='/plist'>View/Edit 900x Radio Parameters</a>\n";
-        message += "<li><a href='/updatepage'>Update Firmware</a>\n";
-        message += "<li><a href='/reboot'>Reboot</a>\n";
-        message += "<li><a href='/edit'>Advanced Mode -  Review and Edit (some) files in the SPIFFS filesystem.</a>";
-        message += "</ul>\n";
-        message += "<hr>\n";
-        message += "<h2>Documentation</h2>\n";
-        message += "(requires internet access)<br>\n";
-        message += "<ul>\n";
-        message += "<li><a href='http://ardupilot.org'>ArduPilot Website</a>\n";
-        message += "<li><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP8266 WiFi Documentation</a>\n";
-        message += "<li><a href='https://github.com/RFDesign/mavesp8266'>RFDesign ESP8266 Source Code</a>\n";
-        message += "<li><a href='http://files.rfdesign.com.au/firmware/'>RFDesign TXMOD Firmware Updates</a>\n";
-        message += "</ul>\n";
-        message += "</div></body></html>";
-
+        message = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><style>";
+        message+= "body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1,h2,p{font-weight:normal}h2{font-size:20px;margin:0 0 15px 0;width:100%}";
+        message+= "p{font-size:12px;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b{margin:0 0 15px 0;background-color:#fff;padding:15px}";
+        message+= "a,a:hover,a:active,a:visited{background-color:transparent;font-size:10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border:1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block}a:hover{background-color:#D7EDFF}.warn{background-color:#ffe88e;padding:10px;border-radius:5px;font-style:italic}";
+        message+= "</style></head><body><div class='hd'><h1>TXMOD</h1></div><div class='cl h ct l'><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>";
+        message+= "<div class='b'><h2>Device Info</h2><p class='warn'>It seems your TX Pole does not have a SPIFFS file system installed. Upload the SPIFFS file to fix this issue.</p>$device_info$</div>";
+        message+= "<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div>";
+        message+= "</div><div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>";
+        message+= "<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div></div></body></html>";
+  
+        for(int i = 0; i < 2; i++)
+        {
+            message.replace(dictionary[i][0], dictionary[i][1]);
+        }
         setNoCacheHeaders();
         webServer.send(200, FPSTR(kTEXTHTML), message);
     }
-
+    
 }
 
 
@@ -519,67 +525,92 @@ static void handle_getStatus()
 {
     if(!flash)
         flash = ESP.getFreeSketchSpace();
+
     if(!paramCRC[0]) {
         snprintf(paramCRC, sizeof(paramCRC), "%08X", getWorld()->getParameters()->paramHashCheck());
     }
+
     linkStatus* gcsStatus = getWorld()->getGCS()->getStatus();
     linkStatus* vehicleStatus = getWorld()->getVehicle()->getStatus();
     String message = FPSTR(kHEADER);
 
-extern bool tcp_passthrumode;
+    extern bool tcp_passthrumode;
 
     if ( tcp_passthrumode == false ) { 
-    message += "<font color=green>Device is currently In UDP(mavlink) mode right now.</font><br>\n";
-    } else { 
-    message += "<font color=red>NOT In UDP(mavlink) mode right now</font><br>\n";
+        message += "<h2>Communication status</h2><div class='pr'><p class='gr' style='visibility:visible;width:100%'>Device is currently In UDP (mavlink) mode. ";
+        message += "To connect your GCS in UDP (mavlink) mode, please open a UDP port on port number: ";
+        message += getWorld()->getParameters()->getWifiUdpHport();
+        message += "</p></div>";
+        message += "<table><tr><td width=\"240\">Packets Received from GCS</td><td>";
+        message += gcsStatus->packets_received;
+        message += "</td></tr><tr><td>Packets Sent to GCS</td><td>";
+        message += gcsStatus->packets_sent;
+        message += "</td></tr><tr><td>GCS Packets Lost</td><td>";
+        message += gcsStatus->packets_lost;
+        message += "</td></tr><tr><td>GCS Parse Errors</td><td>";
+        message += gcsStatus->parse_errors;
+        message += "</td></tr><tr><td>Packets Received from Vehicle</td><td>";
+        message += vehicleStatus->packets_received;
+        message += "</td></tr><tr><td>Packets Sent to Vehicle</td><td>";
+        message += vehicleStatus->packets_sent;
+        message += "</td></tr><tr><td>Vehicle Packets Lost</td><td>";
+        message += vehicleStatus->packets_lost;
+        message += "</td></tr><tr><td>Vehicle Parse Errors</td><td>";
+        message += vehicleStatus->parse_errors;
+        message += "</td></tr><tr><td>Radio Messages</td><td>";
+        message += gcsStatus->radio_status_sent;
+        message += "</td></tr></table>";
+        message += "<h2 style='margin-top:15px'>System Status</h2><table>";
+        message += "<tr><td width=\"240\">Flash Available</td><td>";
+        message += flash;
+        message += "</td></tr>";
+        message += "<tr><td>RAM Left</td><td>";
+        message += String(ESP.getFreeHeap());
+        message += "</td></tr>";
+        message += "<tr><td>Parameters CRC</td><td>";
+        message += paramCRC;
+        message += "</td></tr>";
+    } else {
+        extern long int stats_serial_in;
+        extern long int stats_tcp_in;
+        extern long int stats_serial_pkts;
+        extern long int stats_tcp_pkts;
+        extern IPAddress localIP;
+
+        message += "<h2>Communication status</h2><div class='pr'><p class='gr' style='visibility:visible;width:100%'>Currently In TCP pass-through mode. "; 
+        message += "To connect your GCS in TCP mode, please connect as a TCP client to IP: "+ localIP.toString() + "</p></div>";
+        message += "<table><tr><td width=\"240\">TCP Bytes Received from GCS</td><td>";
+        message += stats_tcp_in;
+        message += "</td></tr>";
+        message += "<tr><td>TCP Packets Sent to GCS</td><td>";
+        message += stats_tcp_pkts;
+        message += "</td></tr>";
+        message += "<tr><td>Serial Bytes Received from Vehicle</td><td>";
+        message += stats_serial_in;
+        message += "</td></tr>";
+        message += "<tr><td>Serial Packets Sent to Vehicle</td><td>";
+        message += stats_serial_pkts;
+        message += "</td></tr></table>";
+        message += "<h2 style='margin-top:15px'>System Status</h2><table>";
+        message += "<tr><td width=\"240\">Flash Size</td><td>";
+        message += ESP.getFlashChipRealSize();
+        message += "</td></tr>";
+        message += "<tr><td width=\"240\">Flash Available</td><td>";
+        message += flash;
+        message += "</td></tr>";
+        message += "<tr><td>RAM Left</td><td>";
+        message += String(ESP.getFreeHeap());
+        message += "</td></tr>";
     }
 
-    message += "<font color=green>To connect your GCS in UDP(mavlink) mode, please open a UDP port on port number:";
-    message += getWorld()->getParameters()->getWifiUdpHport();
-    message += "</font><br></p>\n";
-
-    message += "<p>Comm Status</p><table><tr><td width=\"240\">Packets Received from GCS</td><td>";
-
-
-    message += gcsStatus->packets_received;
-    message += "</td></tr><tr><td>Packets Sent to GCS</td><td>";
-    message += gcsStatus->packets_sent;
-    message += "</td></tr><tr><td>GCS Packets Lost</td><td>";
-    message += gcsStatus->packets_lost;
-    message += "</td></tr><tr><td>GCS Parse Errors</td><td>";
-    message += gcsStatus->parse_errors;
-    message += "</td></tr><tr><td>Packets Received from Vehicle</td><td>";
-    message += vehicleStatus->packets_received;
-    message += "</td></tr><tr><td>Packets Sent to Vehicle</td><td>";
-    message += vehicleStatus->packets_sent;
-    message += "</td></tr><tr><td>Vehicle Packets Lost</td><td>";
-    message += vehicleStatus->packets_lost;
-    message += "</td></tr><tr><td>Vehicle Parse Errors</td><td>";
-    message += vehicleStatus->parse_errors;
-    message += "</td></tr><tr><td>Radio Messages</td><td>";
-    message += gcsStatus->radio_status_sent;
-    message += "</td></tr></table>";
-    message += "<p>System Status</p><table>\n";
-    message += "<tr><td width=\"240\">Flash Size</td><td>";
-    message += ESP.getFlashChipRealSize();
-    message += "</td></tr>\n";
-    message += "<tr><td width=\"240\">Flash Available</td><td>";
-    message += flash;
-    message += "</td></tr>\n";
-    message += "<tr><td>RAM Left</td><td>";
-    message += String(ESP.getFreeHeap());
-    message += "</td></tr>\n";
-    message += "<tr><td>Parameters CRC</td><td>";
-    message += paramCRC;
-    message += "</td></tr>\n";
     message += "</table>";
-    message += "</body>";
+    message += FPSTR(kFOOTER);
     setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
 }
 
 //---------------------------------------------------------------------------------
-static void handle_getStatusTcp()
+/*static void handle_getStatusTcp()
 {
     if(!flash)
         flash = ESP.getFreeSketchSpace();
@@ -621,26 +652,27 @@ extern bool tcp_passthrumode;
     message += stats_serial_pkts;
     message += "</td></tr></table>";
 
-    message += "<p>System Status</p><table>\n";
+    message += "<p>System Status</p><table>";
     message += "<tr><td width=\"240\">Flash Size</td><td>";
     message += ESP.getFlashChipRealSize();
-    message += "</td></tr>\n";
+    message += "</td></tr>";
     message += "<tr><td width=\"240\">Flash Available</td><td>";
     message += flash;
-    message += "</td></tr>\n";
+    message += "</td></tr>";
     message += "<tr><td>RAM Left</td><td>";
     message += String(ESP.getFreeHeap());
-    message += "</td></tr>\n";
+    message += "</td></tr>";
 
     message += "</table>";
     message += "</body>";
     setNoCacheHeaders();
     webServer.send(200, FPSTR(kTEXTHTML), message);
-}
+}*/
 
 //---------------------------------------------------------------------------------
 void handle_getJLog()
 {
+    DBG_OUTPUT_PORT.println("handle_getJLog()");
     uint32_t position = 0, len;
     if(webServer.hasArg(kPOSITION)) {
         position = webServer.arg(kPOSITION).toInt();
@@ -657,6 +689,7 @@ void handle_getJLog()
 //---------------------------------------------------------------------------------
 void handle_getJSysInfo()
 {
+    DBG_OUTPUT_PORT.println("handle_getJSysInfo()");
     if(!flash)
         flash = ESP.getFreeSketchSpace();
     if(!paramCRC[0]) {
@@ -686,6 +719,7 @@ void handle_getJSysInfo()
 //---------------------------------------------------------------------------------
 void handle_getJSysStatus()
 {
+    DBG_OUTPUT_PORT.println("handle_getJSysStatus()");
     bool reset = false;
     if(webServer.hasArg("r")) {
         reset = webServer.arg("r").toInt() != 0;
@@ -800,6 +834,7 @@ void wiz_param_saver( String ParamID, String ParamVAL ) {
 // for /wiz url
 void handle_wiz_save() // accept updated param/s via POST, save them, then display standard 'edit' form with new data.
 {
+    DBG_OUTPUT_PORT.println("handle_wiz_save()");
     if(webServer.args() == 0) {
         // no args, just return 200/ok
         webServer.send(200, FPSTR(kTEXTHTML), "ok");
@@ -1049,6 +1084,7 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
 //---------------------------------------------------------------------------------
 void handle_setParameters() // accept updated param/s via POST, save them, then display standard 'edit' form with new data.
 {
+    DBG_OUTPUT_PORT.println("handle_setParameters()");
     if(webServer.args() == 0) {
         returnFail(kBADARG);
         return;
@@ -1130,6 +1166,7 @@ void handle_setParameters() // accept updated param/s via POST, save them, then 
 //---------------------------------------------------------------------------------
 static void handle_reboot()
 {
+    DBG_OUTPUT_PORT.println("handle_reboot()");
     String message = FPSTR(kHEADER);
     message += "rebooting ...</body>\n";
     setNoCacheHeaders();
@@ -1207,6 +1244,7 @@ static void handle_update_html()
 }
 
 void handleFileUpload() {
+    DBG_OUTPUT_PORT.println("handleFileUpload()");
     //DBG_OUTPUT_PORT.println("handleFileUpload 0: "); 
   if (webServer.uri() != "/edit") {
     return;
@@ -1251,7 +1289,7 @@ void handleFileUpload() {
 
 // /plist
 void handle900xParamList() { 
-
+    DBG_OUTPUT_PORT.println("handle900xParamList()");
     File html = SPIFFS.open("/r900x_params.htm", "r");
  
     html.setTimeout(50); // don't wait long as it's a file object, not a serial port.
@@ -1275,7 +1313,7 @@ extern void r900x_setup(bool refresh);
 
 // /prefresh
 void handle900xParamRefresh() { 
-
+    DBG_OUTPUT_PORT.println("handle900xParamRefresh()");
     String type = webServer.arg("type");
 
     String factory = webServer.arg("factory");
@@ -1342,6 +1380,7 @@ void handleFileList() {
 }
 
 void handleFileDelete() {
+    DBG_OUTPUT_PORT.println("handleFileDelete()");
   if (webServer.args() == 0) {
     return webServer.send(500, "text/plain", "BAD ARGS");
   }
@@ -1359,6 +1398,7 @@ void handleFileDelete() {
 }
 
 void handleFileCreate() {
+    DBG_OUTPUT_PORT.println("handleFileCreate()");
   if (webServer.args() == 0) {
     return webServer.send(500, "text/plain", "BAD ARGS");
   }
@@ -1381,6 +1421,7 @@ void handleFileCreate() {
 }
 
 void handle900xParamSave() { 
+    DBG_OUTPUT_PORT.println("handle900xParamSave()");
   if (webServer.args() == 0) {
     return webServer.send(500, "text/plain", "BAD ARGS");
   }
@@ -1452,7 +1493,7 @@ MavESP8266Httpd::begin(MavESP8266Update* updateCB_)
     webServer.on("/getparameters",  handle_getParameters);
     webServer.on("/setparameters",  handle_setParameters);
     webServer.on("/getstatus",      handle_getStatus);
-    webServer.on("/getstatus_tcp",  handle_getStatusTcp);
+    //webServer.on("/getstatus_tcp",  handle_getStatusTcp);
     webServer.on("/reboot",         handle_reboot);
     webServer.on("/setup",          handle_setup);
     webServer.on("/info.json",      handle_getJSysInfo);

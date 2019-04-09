@@ -1,39 +1,38 @@
 <!doctype html><html><head><title>RFDesign TXMOD</title><link href='/s.css' rel='stylesheet'>
+<meta name="viewport" content="initial-scale=1.0">
+<meta charset="utf-8">
 <script src="p.js"></script>
+<style>
+.att{border-radius:3px;color:#fff;font-size:10px;padding:3px 5px;margin-top:10px;display:inline-block}
+.rt_msg,td{font-size:12px;font-style:italic}
+td input,table{width:100%}
+</style>
 </head>
-
-<body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>
-
-<h2 id=mymsg>&nbsp;</h2>
-<table><tr><td>
-<table id=local>
-<th>LOCAL RADIO (ATI5)</th>
-<!-- T1-->
-</table>
-</td><td>
-<table id=remote>
-<th>REMOTE RADIO (RTI5)</th>
-<!-- T2-->
-</table>
-</td></tr>
-</table>
-<p>
-<input type='submit' id='fresh' value='Load Fresh Params' onclick="reload_fresh_params(); return false;" ><br>
-CAUTION: If your remote params list does not show, press this again. You must be sure you have a remote radio synced ( ie both radios solid green LED ), and if encryption is used then it must be configured the same on both radios. 
-<p>
-<input type='submit' id='sub2' value='Save Params' onclick="saveforms(); return false;" >&nbsp;<span id=sub ></span><br>
-CAUTION - saving the incorrect settings here may result in loss of conenction between the radios.
-<p>
+<body>
+<div class="hd"><img src="logo.png"/><h1><a href="/">TXMOD</a></h1></div>
+<div class="b f"><h2>Radio parameters</h2>
+<p>This page shows the last-known settings from the radios by default. If you have changed the settings elsewhere, such as with AT commands, or run the "wizard", then you should press the "Load Fresh Params" button to get up-to-date information here.</p>
+<p>If you have your remote radio turned off, or disconnected, pressing 'Load Fresh Params' will allow you to display and save the local 900x radio settings, but you will have to ensure your remote 900x radio is configured correctly on your own.</p>
+<input type='submit' id='fresh' value='Load fresh parameters' onclick="reload_fresh_params(); return false;" ><span id=mymsg class=rt_msg></span>
+<p><span class="att rd">ATTENTION</span> If your remote params list does not show, press this again. This will interrupt any ongoing communications between local and remote radios. You must be sure you have a remote radio synced (ie. both radios solid green LED). If encryption is used then it must be configured the same on both radios.</p>
+<input type='submit' id='sub2' value='Save parameters' onclick="saveforms(); return false;" ><span id=sub class=rt_msg></span>
+<p><span class="att rd">ATTENTION</span> Saving the incorrect settings here may result in loss of connection between the radios.</p>
 <!--
 <input type='submit' id='sub' value='Factory Default' onclick="factory(); return false;" ><br>
-CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXMOD.<br>
+CAUTION -  if you don't have both radios connected and a solid green LED link light, this will only factory-default the one in the TXPOLE.<br>
 -->
-<br>
-TIPs: <br>
-This page shows the last-known settings from the radio/s by default, if you have changed the settings elsewhere, such as with AT commands, or run the 'wizard', then you will want to pres the 'Load Fresh Params' button to get up-to-date information here. <br>
-<p>
-If you have your remote radio turned off, or disconnected, pressing 'Load Fresh Params' will allow you to display and save the local 900x radio settings, but you will have to ensure your remote 900x radio is configured correctly on your own.<br>
-<p>
+</div>
+<div class="cl h ct l">
+<div class="b">
+<h2>Local radio parameters</h2>
+<table id=local>
+<!-- T1-->
+</table>
+</div></div><div class="cl h ct"><div class="b">
+<h2>Remote radio parameters</h2>
+<table id=remote>
+<!-- T2-->
+</table>
+</div></div>
 </body>
 </html>
-
