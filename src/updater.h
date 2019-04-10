@@ -2,43 +2,37 @@
 // doesn't knobble the entire device. Shouldn't be needed, but when updating from 2M flashed to a 4M board it is.
 // try to keep this and update.htm looking about the same.
 const char PROGMEM UPDATER[] = R"V0G0N(
-<!doctype html><html><head><title>RFDesign TXMOD</title>
+<!DOCTYPE html><html><head><title>RFDesign TXMOD</title><meta name="viewport" content="initial-scale=1.0"><meta charset="utf-8">
 <style>
-body {
-    width: 80%;
-    padding: 20px;
-    background-color: #f1f1f1;
-    font-family: Raleway;
-    margin: 20px auto;
-}
-.doc { 
-    background-color: #ffffff;
-} 
-.pale { 
-    color:#ce8383;
-    display: inline;
-}
-</style>
-</head>
-
-<body><div class='doc'><h1><a href='/'>RFDesign TXMOD</a></h1>
-
-Your Module has TWO microcontrollers in it!<br>
-
+body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}
+a,a:active,a:visited{color:#000;text-decoration:none;display:inline-block}
+h1,h2,h3,p{font-weight:normal}
+h2,h3{font-size:20px;margin:0 0 15px 0;width:100%}
+h3{font-size:18px}
+p{font-size:12px;padding:0 0 15px 0;margin:0}
+p:last-child{padding-bottom:0}
+.b{margin:0 0 15px 0;background-color:#ffffff;padding:15px;-webkit-box-shadow:0px 0px 5px 0px rgba(200,200,200,1);-moz-box-shadow:0px 0px 5px 0px rgba(200,200,200,1);box-shadow:0px 0px 5px 0px rgba(200,200,200,1);border-radius:5px}
+.hd{margin:10px 0}
+.hd img {float:right;display:block;padding:10px 0;height:27px}
+.f{clear:both}
+.gr{background-image:linear-gradient(to top right,#41f47f,#41e2f4);background-color:#41f47f}
+.pr {background-color:#f1f1f1;margin:20px 0;border-radius:5px;margin:20px 0 10px 0;display:inline-block;width:100%}
+.pr p{color:#fff;border:none;font-size:17px;border-radius:5px;padding:10px;box-sizing:border-box;display:inline-block;visibility:hidden;text-align:center}
+button{width:200px}</style>
+<head>
+<body>
+<div class="hd"><h1><a href="/">TXMOD</a></h1></div>
+<div class="b f"><h2>Firmware update</h2>
+<p>The TXMOD features two microcontrollers and they require different binaries. The main controller has an internal fillesystem called SPIFFS that should be loaded in a separate step. For full system update you are required to upload the main firmware and the SPIFFS file system, which correspond to steps 1 and 2. The radio firmware upgrade is optional.</p>
 <input type='file' name='spiffs' style="display:none" id="upload-spiffs" />
-<input type='file' name='update' style="display:none" id="upload-firmware" /><br>
-<input type='file' name='update' style="display:none" id="upload-rfdsik" /><br>
-For Full System update: <div class='pale'>( Please do both, but only one of these at a time)</div><br>
-Step 1:<button id="choose-firmware">Choose 'firmware.bin'</button> or something like 'RFDTxMod-V1.30.bin' <div class='pale'>( this flashes to the txmod )</div><br>
-Step 2:<button id="choose-spiffs">Choose 'spiffs.bin'</button> or something like 'RFDTxMod-V1.30.spiffs.bin' <div class='pale'>(includes a standard RFDSiK900x.bin)</div><br>
-<br>
-To Just update the firmware in your 900x Radio:<br>
-Optional:<button id="choose-rfdsik">Choose 'RFDSiK900x.bin'</button> or something like 'RFDSiK V2.65 rfd900x.bin'<br>
-
-<hr>
-Upload Progress:
-<progress value="0" max="100" id="progressBar"></progress><br>
-<hr>
+<input type='file' name='update' style="display:none" id="upload-firmware" />
+<input type='file' name='update' style="display:none" id="upload-rfdsik" />
+<h3>Step 1 - Main controller</h3><p><button id="choose-firmware">Choose <i>firmware.bin</i></button> or something like <i>RFDTxPole-V1.0.bin</i></p>
+<h3>Step 2 - SPIFFS file system</h3><p><button id="choose-spiffs">Choose <i>spiffs.bin</i></button> or something like <i>RFDTxPole-V1.0.spiffs.bin</i></p>
+<h3>Optional step - RFD900x firmware update</h3>
+<p><button id="choose-rfdsik">Choose <i>RFDSiK900x.bin</i></button> or something like <i>RFDSiK V2.65 rfd900x.bin</i></p>
+<div class="pr"><p class="gr" id="progressBar">0%</p></div>
+</div>
 <script>
 // Show the file browse dialog
 document.querySelector('#choose-spiffs').addEventListener('click', function() {
@@ -67,21 +61,11 @@ function change_detector() {
 	var file3 = document.querySelector('#upload-rfdsik').files[0]; // this.files[0];
 
     if ( which == 1 ) { file = file1; action = "/update"; name = "spiffs"; filename = 'spiffs.bin'; 
-                        filenamestart = 'RFDTxMod'; filenameend = '.spiffs.bin'; } 
+                        filenamestart = 'RFDTxPole'; filenameend = '.spiffs.bin'; } 
     if ( which == 2 ) { file = file2; action = "/upload"; name = "firmware"; filename = 'firmware.bin'; 
-                        filenamestart = 'RFDTxMo'; filenameend = '.bin';} 
+                        filenamestart = 'RFDTxPole'; filenameend = '.bin';} 
     if ( which == 3 ) { file = file3; action = "/edit"; name = "update"; filename = 'RFDSiK900x.bin'; 
                         filenamestart = 'RFDSiK'; filenameend = '900x.bin';} 
-
-	// Allowed types
-	var mime_types = [ 'application/octet-stream' ]; // eg 'image/jpeg', 'image/png' ];
-	
-	// Validate MIME type
-	if(mime_types.indexOf(file.type) == -1) {
-		alert('Error : Incorrect file type');
-		alert(file.type);
-		return;
-	}
 
 	// Max 4 Mb allowed
 	if(file.size > 4*1024*1024) {
@@ -96,9 +80,9 @@ function change_detector() {
        file=newfile;
     }
     
-    if ( file.name != filename ) { 
-	  alert('You tried to upload the incorrect file name!. Expecting: ' +filename+ " ( or something starting with '"+filenamestart+"') -> Got: "+file.name);
-    }
+    //if ( file.name != filename ) { 
+	//  alert('You tried to upload the incorrect file name!. Expecting: ' +filename+ " ( or something starting with '"+filenamestart+"') -> Got: "+file.name);
+    //}
 
     precache_success_page();
 	
@@ -171,8 +155,9 @@ function up_file(name, action, file) {
   	var percent_complete = (e.loaded / e.total)*100;
   	
   	// Percentage of upload completed
-  	//console.log(percent_complete);
-  	document.getElementById("progressBar").value = percent_complete;
+	document.getElementById("progressBar").style.visibility = 'visible';
+  	document.getElementById("progressBar").style.width = percent_complete + '%';
+	document.getElementById("progressBar").innerHTML = percent_complete.toFixed() + '%';
   });
   
   // If server is sending a JSON response then set JSON response type
@@ -181,16 +166,9 @@ function up_file(name, action, file) {
   // Send POST request to the server side script
   request.open('post', action); 
   request.send(data);
-  
   // we handle the results in the 'load' event listener.
-
 }
-
 </script>
-
-
-
 </body>
 </html>
-
 )V0G0N";

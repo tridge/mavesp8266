@@ -299,6 +299,32 @@ bool handleFileRead(String path) {
   return false;
 }
 
+bool handleFileRead(String path, uint minsize) {
+  DBG_OUTPUT_PORT.println("handleFileRead: " + path + " ("+String(minsize)+")");
+  if (path.endsWith("/")) {
+    path += "index.htm";
+  }
+  String contentType = getContentType(path);
+  String pathWithGz = path + ".gz";
+  if (SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)) {
+    if (SPIFFS.exists(pathWithGz)) {
+      path += ".gz";
+    }
+    File file = SPIFFS.open(path, "r");
+    if (file.size() >= minsize) {
+        webServer.streamFile(file, contentType);
+        file.close();
+        return true;
+    } else {
+        DBG_OUTPUT_PORT.println("file is too small");
+        file.close();
+        return false;
+    }
+  }
+  DBG_OUTPUT_PORT.println("file does not exist");
+  return false;
+}
+
 
 
 //---------------------------------------------------------------------------------
@@ -383,7 +409,7 @@ static void handle_root()
     // but could be made to work on bigger files if we write the above to spiffs as (say) index.cache.htm, then 
     //sent the result with handleFileRead("/index.cache.htm"). 
     File f = SPIFFS.open("/index.htm", "r");
-    if (f.size() != 0) { 
+    if (f.size() > 100) { 
         message = f.readString();
         f.close();
     } 
@@ -410,7 +436,7 @@ static void handle_root()
     cache.close(); // close index.cache.htm
  
     // try to render /index.cache as-is, otherwise fallback to this more minimal static version... 
-    if (!handleFileRead("/index.cache.htm")) {
+    if (!handleFileRead("/index.cache.htm", 100)) {
         message = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><style>";
         message+= "body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1,h2,p{font-weight:normal}h2{font-size:20px;margin:0 0 15px 0;width:100%}";
         message+= "p{font-size:12px;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b{margin:0 0 15px 0;background-color:#fff;padding:15px}";
@@ -1233,12 +1259,10 @@ void send_favicon() {
 //---------------------------------------------------------------------------------
 static void handle_update_html()
 {
-
     // try to render external /update.htm as-is, otherwise fallback to the embedded copy. 
-    if (!handleFileRead("/update.htm")) {
-
-        String message =  FPSTR(UPDATER);
-        webServer.send(200, FPSTR(kTEXTHTML), message);
+    if (!handleFileRead("/update.htm", 100)) {
+        webServer.send_P(200, kTEXTHTML, UPDATER, sizeof(UPDATER));
+        DBG_OUTPUT_PORT.println("rendering embedded update.htm");
     }
 
 }
