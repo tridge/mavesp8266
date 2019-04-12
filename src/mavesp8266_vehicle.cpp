@@ -85,8 +85,9 @@ void
 MavESP8266Vehicle::readMessageRaw() {
     char buf[1024];
     int buf_index = 0;
+    int avail = Serial.available();
 
-    while(Serial.available() && buf_index < 300)
+    for (int i = 0; (i<avail)&&(buf_index < 300); i++)
     {
         int result = Serial.read();
         if (result >= 0)

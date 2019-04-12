@@ -1166,11 +1166,7 @@ WiFiClient tcpclient;
 #define max_serial_size 128 // never SEND any serial chunk over this size
 
 // raw serial<->tcp passthrough buffers, if used.
-uint8_t buf1[bufferSize];
-uint8_t i1=0;
-
-uint8_t buf2[bufferSize];
-uint8_t i2=0;
+uint8_t buf[bufferSize];
 
 // variables for tcp-serial passthrough stats
 long unsigned int msecs_counter = 0;
@@ -1386,15 +1382,11 @@ void setup() {
 swSer.println(F("setup() complete"));
 }
 
+bool gcs_veh_initd = false;
 
 void client_check() { 
-
-    
-    //swSer.print("."); //debug only
-
     uint8 x = wifi_softap_get_station_num();
     if ( client_count != x ) { 
-        swSer.println("new client/s connected"); 
         client_count = x;
         DEBUG_LOG("Got %d client(s)\n", client_count); 
 
@@ -1417,9 +1409,8 @@ void client_check() {
             swSer.println(F("GCS.begin finished")); 
             Vehicle.begin(&GCS);
             swSer.println(F("Vehicle.begin finished")); 
-    
+            gcs_veh_initd = true;    
         } 
-
     } 
 } 
 
@@ -1449,7 +1440,7 @@ void handle_tcp_and_serial_passthrough() {
         msecs_counter = millis(); 
         secs++;
 
-        swSer.println(F("stats:"));
+        /*swSer.println(F("stats:"));
         swSer.print(F("serial in:")); swSer.println(stats_serial_in);
         swSer.print(F("tcp in   :")); swSer.println(stats_tcp_in);
         swSer.print(F("ser pkts :")); swSer.println(stats_serial_pkts);
@@ -1459,57 +1450,38 @@ void handle_tcp_and_serial_passthrough() {
         swSer.print(F("largest tcp pkt:")); swSer.println(largest_tcp_packet);    
 
 
-        swSer.println(F("----------------------------------------------"));
+        swSer.println(F("----------------------------------------------"));*/
         stats_serial_in=0;
         stats_tcp_in=0;
         stats_serial_pkts=0;
         stats_tcp_pkts=0;
       }
 
-      if(tcpclient.available()) {
-        while(tcpclient.available()) {
-          buf1[i1] = (uint8_t)tcpclient.read(); // read char from client 
-          stats_tcp_in++;
-          if(i1<bufferSize-1) i1++;
-          if ( i1 >= max_tcp_size ) { // don't exceed max tcp size, even if incoming data is continuous.
-            Serial.write(buf1, i1); stats_serial_pkts++; if ( i1 > largest_tcp_packet ) largest_tcp_packet = i1;
-            i1 = 0;
-            swSer.println(F("max tcp break"));
-            break;
-          }
+      if(int avail = tcpclient.available()) {
+        int bytes_read = 0;
+        for (int i = 0; (i < avail) && (i < max_tcp_size); i++) {
+            buf[i] = (char)tcpclient.read(); // read char from UART
+            stats_tcp_in++;
+            bytes_read++;
         }
-        // now send to UART:
-        Serial.write(buf1, i1);  stats_serial_pkts++; if ( i1 > largest_tcp_packet ) largest_tcp_packet = i1;
-        i1 = 0;
+
+        Serial.write(buf, bytes_read); 
+        stats_serial_pkts++; 
+        if ( avail > largest_tcp_packet ) largest_tcp_packet = avail;
       }
 
-      if(Serial.available()) {
+        if(int avail = Serial.available()) {
+            int bytes_read = 0;
+            for (int i = 0; (i < avail) && (i < max_tcp_size); i++) {
+                buf[i] = (char)Serial.read(); // read char from UART
+                stats_serial_in++;
+                bytes_read++;
+            }
 
-        // read the data until pause or max size reached
-        
-        while(1) {
-          if(Serial.available()) {
-            buf2[i2] = (char)Serial.read(); // read char from UART
-            stats_serial_in++;
-            if(i2<bufferSize-1) i2++;
-            if ( i2 >= max_tcp_size ) { // don't exceed max serial size, even if incoming data is continuous.
-                tcpclient.write((char*)buf2, i2); stats_tcp_pkts++; if ( i2 > largest_serial_packet ) largest_serial_packet = i2;
-                i2 = 0;
-                swSer.println(F("max serial break"));
-                break;
-            }
-          } else {
-            //delayMicroseconds(packTimeoutMicros);
-            delay(packTimeout);
-            if(!Serial.available()) {
-              break;
-            }
-          }
+            tcpclient.write((char*)buf, bytes_read);
+            stats_tcp_pkts++;
+            if (avail > largest_serial_packet) largest_serial_packet = avail;
         }
-        // now send to WiFi:
-        tcpclient.write((char*)buf2, i2);  stats_tcp_pkts++; if ( i2 > largest_serial_packet ) largest_serial_packet = i2;
-        i2 = 0;
-      }
     #endif
 
 }
@@ -1519,14 +1491,13 @@ void handle_tcp_and_serial_passthrough() {
 // periodic client check..
 int period = 200;
 unsigned long time_next = 0;
- 
+
 void loop() {
 
     if(millis() > time_next){
         time_next = millis()+period;
         client_check();
     }
-
 
     if (tcp_check() ) {  // if a client connects to the tcp server, stop doing everything else and handle that
         if ( tcp_passthrumode == false ) {tcp_passthrumode = true;
@@ -1538,20 +1509,20 @@ void loop() {
         if ( tcp_passthrumode == true ) { tcp_passthrumode = false; swSer.println(F("exited tcp-serial passthrough mode")); }
 
         if(!updateStatus.isUpdating()) {
-            if (Component.inRawMode()) {
-                GCS.readMessageRaw();
-                delay(0);
-                Vehicle.readMessageRaw();
-
-            } else {
-                GCS.readMessage();
-                delay(0);
-                Vehicle.readMessage();
-                LEDState = !LEDState;
-                digitalWrite(LEDGPIO,LEDState);
+            if (gcs_veh_initd) {
+                if (Component.inRawMode()) {
+                    GCS.readMessageRaw();
+                    delay(0);
+                    Vehicle.readMessageRaw();
+                } else {
+                    GCS.readMessage();
+                    delay(0);
+                    Vehicle.readMessage();
+                    LEDState = !LEDState;
+                    digitalWrite(LEDGPIO,LEDState);
+                }
             }
         }
-
     }
     updateServer.checkUpdates(); // aka webserver.handleClient()
 

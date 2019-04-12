@@ -69,10 +69,12 @@ void ESP8266HTTPUpdateServer::setup(ESP8266WebServer *server, const char * path,
         _server->send(200, F("text/html"), String(F("Update error: ")) + _updaterError);
       } else {
         _server->client().setNoDelay(true);
-        _server->send_P(200, PSTR("text/html"), successResponse);
+        _server->sendHeader("Location","/success.htm");      // Redirect the client to the success page
+        _server->send(303);
+        //_server->send_P(200, PSTR("text/html"), successResponse);
         delay(100);
         _server->client().stop();
-        ESP.restart();
+        //ESP.restart();
       }
     },[&](){
       // handler for the file upload, get's the sketch bytes, and writes

@@ -67,6 +67,29 @@ const char PROGMEM kNOTFOUND[]   = "<!DOCTYPE html><html><head><title>TXMOD</tit
 const char PROGMEM kBADARG[]     = "BAD ARGS";
 const char PROGMEM kAPPJSON[]    = "application/json";
 
+const char PROGMEM embbeded_index[] = R"V0G0N(
+<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'>
+<style>body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1 {font-weight:normal}h2{font-size:20px;font-weight:normal;margin:0 0 15px 0;width:100%}
+p {font-size:12px;font-weight:normal;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b {margin:0 0 15px 0;background-color: #ffffff;padding:15px}.hd{margin: 10px 0}.b a, .b a:hover, .b a:active, .b a:visited, .btn {background-color:transparent;font-size: 10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border: 1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block;}.b a:hover, .btn:hover {background-color:#D7EDFF;}
+.ct {display:inline-block;width:auto}.c:after,.c:before,.r:after,.r:before{content:'';display:table;clear:both}.cl{float:left;width:100%}@media (min-width:900px){.h{width:392px} .l{margin-right:16px}}.c{padding:0.01em 16px}
+.bt{height:90px;color:#fff}.rd{background-color:#f44242}.gr{background-color:#41f47f}.bt img{float:left;padding:0 20 0 10px;height:85px;margin:0 10px 0 0}.bt h1{margin:5px 0}.bt a{text-align:right;clear:both;color:#fff;border:1px solid #fff;float:right}.bt a:hover, .bt a:active, .bt a:visited{background-color:rgba(255,255,255,0.2);border:1px solid #fff;color:#fff}</style>
+</head><body><div class='hd'><h1>TXMOD</h1></div><div class='cl h ct l'><div class='b'><h2>Device Info</h2>$device_info$</div><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>
+<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div></div>
+<div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>
+<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div>
+</div></body></html>)V0G0N";
+
+const char PROGMEM embbeded_index_minimal[] = R"V0G0N(
+<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><style>
+body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1,h2,p{font-weight:normal}h2{font-size:20px;margin:0 0 15px 0;width:100%}
+p{font-size:12px;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b{margin:0 0 15px 0;background-color:#fff;padding:15px}
+a,a:hover,a:active,a:visited{background-color:transparent;font-size:10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border:1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block}a:hover{background-color:#D7EDFF}.warn{background-color:#ffe88e;padding:10px;border-radius:5px;font-style:italic}
+</style></head><body><div class='hd'><h1>TXMOD</h1></div><div class='cl h ct l'><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>
+<div class='b'><h2>Device Info</h2><p class='warn'>It seems your TX Pole does not have a SPIFFS file system installed. Upload the SPIFFS file to fix this issue.</p>$device_info$</div>
+<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div>
+</div><div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>
+<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div></div></body></html>)V0G0N";
+
 
 const char* kBAUD       = "baud";
 const char* kPLAIN       = "plain";
@@ -140,11 +163,21 @@ void handle_update() {
     webServer.send(200, FPSTR(kTEXTHTML), FPSTR(kUPLOADFORM));
 }
 
+#define DEBUG_SERIAL swSer
+
 //---------------------------------------------------------------------------------
 void handle_upload() {
     webServer.sendHeader("Connection", "close");
     webServer.sendHeader(FPSTR(kACCESSCTL), "*");
-    webServer.send(200, FPSTR(kTEXTPLAIN), (Update.hasError()) ? "FAIL" : "OK");
+    
+    if (Update.hasError()) {
+        webServer.send(200, FPSTR(kTEXTPLAIN), "FAIL");
+    } else {
+        DEBUG_SERIAL.println("handle_upload() Success");
+        webServer.sendHeader("Location","/success.htm");      // Redirect the client to the success page
+        webServer.send(303);
+    }
+
     if(updateCB) {
         updateCB->updateCompleted();
     }
@@ -200,7 +233,7 @@ void handle_upload_status() {
                 Update.printError(DEBUG_SERIAL);
             #endif
             success = false;
-            webServer.send(500, "text/plain", "500: couldn't create file");
+            webServer.send(500, "text/plain", "500: could not create file");
         }
         #ifdef DEBUG_SERIAL
             //DEBUG_SERIAL.setDebugOutput(false);
@@ -415,16 +448,7 @@ static void handle_root()
     } 
     else
     {
-        message = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'>";
-        message += "<style>body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1 {font-weight:normal}h2{font-size:20px;font-weight:normal;margin:0 0 15px 0;width:100%}";
-        message += "p {font-size:12px;font-weight:normal;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b {margin:0 0 15px 0;background-color: #ffffff;padding:15px}.hd{margin: 10px 0}.b a, .b a:hover, .b a:active, .b a:visited, .btn {background-color:transparent;font-size: 10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border: 1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block;}.b a:hover, .btn:hover {background-color:#D7EDFF;}";
-        message += ".ct {display:inline-block;width:auto}.c:after,.c:before,.r:after,.r:before{content:'';display:table;clear:both}.cl{float:left;width:100%}@media (min-width:900px){.h{width:392px} .l{margin-right:16px}}.c{padding:0.01em 16px}";
-        message += ".bt{height:90px;color:#fff}.rd{background-color:#f44242}.gr{background-color:#41f47f}.bt img{float:left;padding:0 20 0 10px;height:85px;margin:0 10px 0 0}.bt h1{margin:5px 0}.bt a{text-align:right;clear:both;color:#fff;border:1px solid #fff;float:right}.bt a:hover, .bt a:active, .bt a:visited{background-color:rgba(255,255,255,0.2);border:1px solid #fff;color:#fff}</style>";
-        message += "</head><body><div class='hd'><h1><a href='/'>TXMOD</a></h1></div><div class='cl h ct l'><div class='b'><h2>Device Info</h2>$device_info$</div><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>";
-        message += "<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div></div>";
-        message += "<div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>";
-        message += "<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div>";
-        message += "</div></body></html>";
+        message = embbeded_index;
     }
     
     for(int i = 0; i < 2; i++)
@@ -437,16 +461,8 @@ static void handle_root()
  
     // try to render /index.cache as-is, otherwise fallback to this more minimal static version... 
     if (!handleFileRead("/index.cache.htm", 100)) {
-        message = "<!DOCTYPE html><html><head><title>TXMOD</title><meta name='viewport' content='initial-scale=1.0'><meta charset='utf-8'><style>";
-        message+= "body{max-width:800px;width:90%;background-color:#f1f1f1;font-family:Verdana;margin:20px auto}h1,h2,p{font-weight:normal}h2{font-size:20px;margin:0 0 15px 0;width:100%}";
-        message+= "p{font-size:12px;padding:0 0 15px 0;margin:0}p:last-child{padding-bottom:0}.b{margin:0 0 15px 0;background-color:#fff;padding:15px}";
-        message+= "a,a:hover,a:active,a:visited{background-color:transparent;font-size:10px;color:#3C9BED;padding:5px 7px;margin:0 3px 3px 0;border:1px solid #3C9BED;border-radius:5px;text-decoration:none;display:inline-block}a:hover{background-color:#D7EDFF}.warn{background-color:#ffe88e;padding:10px;border-radius:5px;font-style:italic}";
-        message+= "</style></head><body><div class='hd'><h1>TXMOD</h1></div><div class='cl h ct l'><div class='b'><h2>Network Status</h2>$net_info$<a href='/getstatus'>Network status</a><a href='/setup'>WiFi/Network Setup</a></div>";
-        message+= "<div class='b'><h2>Device Info</h2><p class='warn'>It seems your TX Pole does not have a SPIFFS file system installed. Upload the SPIFFS file to fix this issue.</p>$device_info$</div>";
-        message+= "<div class='b'><h2>RFD900x Setup Wizard</h2><p>The wizard allows you the adjust internal and remote long-range radios settings.</p><a href='/wiz.htm'>Go to First Run Wizard!</a></div>";
-        message+= "</div><div class='cl h ct'><div class='b'><h2>Documentation</h2><p>Requires internet access</p><a href='http://ardupilot.org'>ArduPilot Website</a><a href='http://ardupilot.org/copter/docs/common-esp8266-telemetry.html'>ESP32 WiFi Documentation</a><a href='https://github.com/RFDesign/mavesp8266'>TXMOD ESP32 Source Code</a><a href='http://files.rfdesign.com.au/firmware/'>TXMOD Firmware Updates</a></div>";
-        message+= "<div class='b'><h2>Advanced options</h2><a href='/plist'>RFD900x Radio Settings</a><a href='/updatepage'>Update Firmware</a><a href='/edit'>View and edit <!-- some --> files in the SPIFFS filesystem</a></div></div></body></html>";
-  
+        message = embbeded_index_minimal;
+
         for(int i = 0; i < 2; i++)
         {
             message.replace(dictionary[i][0], dictionary[i][1]);
@@ -954,6 +970,7 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         if (val >= 35) { // success
             //message = "remote link tested OK";
             linktest = true;
+            
         } else { 
             message = "FAILED link test to REMOTE 900x radio, check settings. RT S0->"+String(val);
         }
@@ -1304,7 +1321,7 @@ void handleFileUpload() {
       webServer.sendHeader("Location","/success.htm");      // Redirect the client to the success page
       webServer.send(303);
     } else { 
-      webServer.send(500, "text/plain", "500: couldn't create file");
+      webServer.send(500, "text/plain", "500: could not create file");
     }
     //DBG_OUTPUT_PORT.print("handleFileUpload Size: "); DBG_OUTPUT_PORT.println(upload.totalSize);
   }
@@ -1320,7 +1337,7 @@ void handle900xParamList() {
  
     if ( ! html ) {  // did we open this file ok, ie does it exist? 
         swSer.println("no /r900x_params.htm exists, can't display modem settings properly.\n");
-        webServer.send(200, "text/html", "ERR,couldn't do it - /r900x_params.htm is missing from spiffs."); return;
+        webServer.send(200, "text/html", "Error: r900x_params.htm is missing from spiffs."); return;
     }
 
 

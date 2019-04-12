@@ -18,19 +18,19 @@ p:last-child{padding-bottom:0}
 .gr{background-image:linear-gradient(to top right,#41f47f,#41e2f4);background-color:#41f47f}
 .pr {background-color:#f1f1f1;margin:20px 0;border-radius:5px;margin:20px 0 10px 0;display:inline-block;width:100%}
 .pr p{color:#fff;border:none;font-size:17px;border-radius:5px;padding:10px;box-sizing:border-box;display:inline-block;visibility:hidden;text-align:center}
+.att{border-radius:3px;color:#fff;font-size:10px;padding:3px 5px;margin-top:10px;display:inline-block}
+.rd{background-image:linear-gradient(to top right,#f44242,#f47d41);background-color:#f44242}
 button{width:200px}</style>
 <head>
 <body>
 <div class="hd"><h1><a href="/">TXMOD</a></h1></div>
 <div class="b f"><h2>Firmware update</h2>
-<p>The TXMOD features two microcontrollers and they require different binaries. The main controller has an internal fillesystem called SPIFFS that should be loaded in a separate step. For full system update you are required to upload the main firmware and the SPIFFS file system, which correspond to steps 1 and 2. The radio firmware upgrade is optional.</p>
+<p>For full system update you are required to upload the firmware and the SPIFFS file system binaries, which correspond to steps 1 and 2 respectively.</p>
+<p><span class="att rd">ATTENTION</span> Ongoing radio communications will be lost during the update process.</p>
 <input type='file' name='spiffs' style="display:none" id="upload-spiffs" />
 <input type='file' name='update' style="display:none" id="upload-firmware" />
-<input type='file' name='update' style="display:none" id="upload-rfdsik" />
-<h3>Step 1 - Main controller</h3><p><button id="choose-firmware">Choose <i>firmware.bin</i></button> or something like <i>RFDTxPole-V1.0.bin</i></p>
-<h3>Step 2 - SPIFFS file system</h3><p><button id="choose-spiffs">Choose <i>spiffs.bin</i></button> or something like <i>RFDTxPole-V1.0.spiffs.bin</i></p>
-<h3>Optional step - RFD900x firmware update</h3>
-<p><button id="choose-rfdsik">Choose <i>RFDSiK900x.bin</i></button> or something like <i>RFDSiK V2.65 rfd900x.bin</i></p>
+<h3>Step 1 - Main controller</h3><p><button id="choose-firmware">Choose <i>firmware.bin</i></button> or something like <i>RFDTxMod-V1.0.bin</i></p>
+<h3>Step 2 - SPIFFS file system</h3><p><button id="choose-spiffs">Choose <i>spiffs.bin</i></button> or something like <i>RFDTxMod-V1.0.spiffs.bin</i></p>
 <div class="pr"><p class="gr" id="progressBar">0%</p></div>
 </div>
 <script>
@@ -41,15 +41,11 @@ document.querySelector('#choose-spiffs').addEventListener('click', function() {
 document.querySelector('#choose-firmware').addEventListener('click', function() {
 	document.querySelector('#upload-firmware').click();
 });
-document.querySelector('#choose-rfdsik').addEventListener('click', function() {
-	document.querySelector('#upload-rfdsik').click();
-});
 
 var which = -1;
 
 function change_detector1() { which = 1; return change_detector();}
 function change_detector2() { which = 2; return change_detector(); }
-function change_detector3() { which = 3; return change_detector(); }
 
 function change_detector() {
 	// This is the file user has chosen
@@ -58,14 +54,11 @@ function change_detector() {
     
 	var file1 = document.querySelector('#upload-spiffs').files[0]; // this.files[0];
 	var file2 = document.querySelector('#upload-firmware').files[0]; // this.files[0];
-	var file3 = document.querySelector('#upload-rfdsik').files[0]; // this.files[0];
 
     if ( which == 1 ) { file = file1; action = "/update"; name = "spiffs"; filename = 'spiffs.bin'; 
-                        filenamestart = 'RFDTxPole'; filenameend = '.spiffs.bin'; } 
+                        filenamestart = 'RFDTxMod'; filenameend = '.spiffs.bin'; } 
     if ( which == 2 ) { file = file2; action = "/upload"; name = "firmware"; filename = 'firmware.bin'; 
-                        filenamestart = 'RFDTxPole'; filenameend = '.bin';} 
-    if ( which == 3 ) { file = file3; action = "/edit"; name = "update"; filename = 'RFDSiK900x.bin'; 
-                        filenamestart = 'RFDSiK'; filenameend = '900x.bin';} 
+                        filenamestart = 'RFDTxMod'; filenameend = '.bin';} 
 
 	// Max 4 Mb allowed
 	if(file.size > 4*1024*1024) {
@@ -91,7 +84,6 @@ function change_detector() {
 
 document.querySelector('#upload-spiffs').addEventListener('change', change_detector1);
 document.querySelector('#upload-firmware').addEventListener('change', change_detector2);
-document.querySelector('#upload-rfdsik').addEventListener('change', change_detector3);
 
 
 var successtext = '';
@@ -149,6 +141,11 @@ function up_file(name, action, file) {
     }
 
   });
+
+  request.addEventListener('error', function (e) {
+      alert("Upload failed. Please try again.");
+    window.location.href = '/updatepage';
+  })
   
   // Upload progress on request.upload
   request.upload.addEventListener('progress', function(e) {
@@ -166,8 +163,11 @@ function up_file(name, action, file) {
   // Send POST request to the server side script
   request.open('post', action); 
   request.send(data);
+  
   // we handle the results in the 'load' event listener.
+
 }
+
 </script>
 </body>
 </html>
