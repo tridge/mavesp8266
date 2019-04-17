@@ -10,24 +10,24 @@
 @REM ------------------------------------------------------------------
 
 @REM set us up for a 2MB build:
-copy platformio.ini.2m platformio.ini
+@REM copy platformio.ini.2m platformio.ini
 
-del .pioenvs\esp12e\firmware.bin
-del .pioenvs\esp12e\spiffs.bin
-del firmware.bin
-del spiffs.bin
+@REM del .pioenvs\esp12e\firmware.bin
+@REM del .pioenvs\esp12e\spiffs.bin
+@REM del firmware.bin
+@REM del spiffs.bin
 
 @REM build firmare.bin binary:
-platformio run
+@REM platformio run
 @REM build spiffs.bin binary:
-platformio run -t buildfs
+@REM platformio run -t buildfs
 
 @REM copy the target binaries to a releasable name:
-@SET VERSION=V1.32
-copy .pioenvs\esp12e\spiffs.bin .
-rename spiffs.bin RFDTxMod-%VERSION%.2m.spiffs.bin
-copy .pioenvs\esp12e\firmware.bin .
-rename firmware.bin RFDTxMod-%VERSION%.2m.bin
+@SET VERSION=V1.34
+@REM copy .pioenvs\esp12e\spiffs.bin .
+@REM rename spiffs.bin RFDTxMod-%VERSION%.2m.spiffs.bin
+@REM copy .pioenvs\esp12e\firmware.bin .
+@REM rename firmware.bin RFDTxMod-%VERSION%.2m.bin
 
 del .pioenvs\esp12e\firmware.bin
 del .pioenvs\esp12e\spiffs.bin

@@ -10,19 +10,19 @@
 #------------------------------------------------------------------
 
 # set us up for a 2MB build:
-cp platformio.ini.2m platformio.ini
+#cp platformio.ini.2m platformio.ini
 
 # build firmare.bin binary:
-platformio run
+#platformio run
 # build spiffs.bin binary:
-platformio run -t buildfs
+#platformio run -t buildfs
 
 # copy the target binaries to a releasable name:
-VERSION=V1.32
-echo cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.2m.spiffs.bin
-cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.2m.spiffs.bin
-echo cp .pioenvs/esp12e/firmware.bin RFDTxMod-$VERSION.2m.bin
-cp .pioenvs/esp12e/firmware.bin RFDTxMod-$VERSION.2m.bin
+#VERSION=V1.34
+#echo cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.2m.spiffs.bin
+#cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.2m.spiffs.bin
+#echo cp .pioenvs/esp12e/firmware.bin RFDTxMod-$VERSION.2m.bin
+#cp .pioenvs/esp12e/firmware.bin RFDTxMod-$VERSION.2m.bin
 
 #------------------------------------------------------------------
 
@@ -35,7 +35,7 @@ platformio run
 platformio run -t buildfs
 
 # copy the target binaries to a releasable name:
-VERSION=V1.32
+VERSION=V1.34
 echo cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.4m.spiffs.bin
 cp .pioenvs/esp12e/spiffs.bin RFDTxMod-$VERSION.4m.spiffs.bin
 echo cp .pioenvs/esp12e/firmware.bin RFDTxMod-$VERSION.4m.bin
