@@ -342,7 +342,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
     if (filename == "/r900x_params.txt" ) { 
 
-        String led_on_cmd2 = "ATS19=1\r\n"; 
+        String led_on_cmd2 = "ATS21=1\r\n"; 
         Serial9x.write(led_on_cmd2.c_str());
         Serial9x.flush(); // output buffer flush
         bool b3 = SmartSerial->expect("OK",100);

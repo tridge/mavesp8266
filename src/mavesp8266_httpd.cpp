@@ -1035,10 +1035,10 @@ void handle_wiz_save() // accept updated param/s via POST, save them, then displ
         //ATS16=1
         //RTS17=1
         // and while we are at it, enable local STAT LED:
-        //ATS19=1 
+        //ATS21=1 
 
-        // ... also , side effect, set ATS19=1 but ignore all its output and don't reboot.
-        r900x_savesingle_param_and_verify_more("AT", "S19", "1", false);
+        // ... also , side effect, set ATS21=1 but ignore all its output and don't reboot.
+        r900x_savesingle_param_and_verify_more("AT", "S21", "1", false);
 
         // activate remote 900x Network Channel (ID)  and verify  S3:NETID=
         retval =    r900x_savesingle_param_and_verify_more("RT", "S17", String(w4), true);

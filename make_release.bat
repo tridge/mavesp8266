@@ -23,7 +23,7 @@
 @REM platformio run -t buildfs
 
 @REM copy the target binaries to a releasable name:
-@SET VERSION=V1.34
+@SET VERSION=V1.35
 @REM copy .pioenvs\esp12e\spiffs.bin .
 @REM rename spiffs.bin RFDTxMod-%VERSION%.2m.spiffs.bin
 @REM copy .pioenvs\esp12e\firmware.bin .
