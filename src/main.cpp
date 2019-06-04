@@ -158,16 +158,13 @@ void wait_for_client() {
     digitalWrite(LEDGPIO,LEDState);
 }
 
+int r900x_savesingle_param_and_verify_more(String prefix, String ParamID, String ParamVAL, bool save_and_reboot);
+bool factory_reset_req = false;
+
 //---------------------------------------------------------------------------------
 //-- Reset all parameters whenever the reset gpio pin is active
 void reset_interrupt(){
-    swSer.println(F("FACTORY RESET BUTTON PRESSED - wifi params defaulted!\n"));
-    swSer.flush();
-    LEDState = 1;
-    digitalWrite(LEDGPIO,LEDState);
-    Parameters.resetToDefaults();
-    Parameters.saveAllToEeprom();
-    ESP.reset();
+    factory_reset_req = true;
 }
 
 // count the number of user presses, and when it exceeds 5, reset to defaults.
@@ -342,14 +339,33 @@ int r900x_getparams(String filename, bool factory_reset_first) {
 
     if (filename == "/r900x_params.txt" ) { 
 
-        String led_on_cmd2 = "ATS21=1\r\n"; 
-        Serial9x.write(led_on_cmd2.c_str());
-        Serial9x.flush(); // output buffer flush
-        bool b3 = SmartSerial->expect("OK",100);
-        (void)b3; // compiler unsed variable warning otherwise 
+        r900x_savesingle_param_and_verify_more("AT", "S21", "1", false);
 
-        while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard
-        
+        int param_save_counter = 0;
+        do {
+            // save params AND take out of command mode via a quick reboot
+            String savecmd = prefix+"&W\r\n"; // "AT&W\r\n
+            swSer.println(savecmd); // debug only.
+            Serial.write(savecmd.c_str());
+            Serial.flush(); // output buffer flush
+
+            // LEDState = 0;
+            // digitalWrite(LEDGPIO,LEDState);
+            bool ok = SmartSerial->expect("OK",500); 
+            if ( ok ) { 
+                swSer.println(F("GOT OK Response from radio.\n"));
+                param_save_counter = 5;
+            } else { 
+                swSer.println(F("FALED-TO-GET OK Response from radio. - retrying:\n"));
+                delay(100); // might help by delaying the retry a bit.
+                param_save_counter++;
+
+                // if 5 retries exceeded, return error.
+                swSer.println(F("RETURN:no response to param save request - 5 retries exceeded")); 
+            }
+        } while (param_save_counter < 5);    
+
+        while (Serial9x.available() ) { Serial9x.read();  } // flush read buffer upto this point and discard    
     }
 
     // TODO get version info here from local and/or remote modem with an AT command
@@ -359,7 +375,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     Serial.write(cmd.c_str());
     Serial.flush(); // output buffer flush
     swSer.print(F("----------------------------------------------"));
-    String data = SmartSerial->expect_s("SIS_RSSI=50\r\n",500); 
+    String data = SmartSerial->expect_s("HYSTERESIS_RSSI",500); 
     while (Serial.available() ) { char t = Serial.read();  data += t; } // flush read buffer upto this point.
     swSer.print(data);
     swSer.print(F("----------------------------------------------"));
@@ -379,6 +395,7 @@ int r900x_getparams(String filename, bool factory_reset_first) {
     // now write params to spiffs, for user record:
     if ( data.length() > 300 ) { // typical file length is around 400chars 
         f = SPIFFS.open(filename, "w");
+        data.trim();
         f.print(data);  //actual parm data.
 
         // tack encryption key onto the end of the param file, if it exists, instead of read from remote radio
@@ -1526,6 +1543,50 @@ void loop() {
     }
     updateServer.checkUpdates(); // aka webserver.handleClient()
 
+    MDNS.update();
 
-  MDNS.update();
+    if (factory_reset_req) {
+
+        swSer.println(F("attempting factory reset"));
+
+        if (enter_command_mode_with_retries())
+        {
+            int tries = 0;
+
+            do {
+                swSer.println(F("attempting AT&F"));
+                String factorycmd = "AT&F\r\n";
+                Serial.write(factorycmd.c_str());
+                Serial.flush(); // output buffer flush
+                if (SmartSerial->expect("OK",250)) {
+                    while (Serial.available() ) { Serial.read();  } // flush read buffer upto this point and discard
+
+                    int tries_w = 0;
+                    do {
+                        swSer.println(F("attempting AT&W"));
+                        String factorycmd2 = "AT&W\r\n"; 
+                        Serial.write(factorycmd2.c_str());
+                        Serial.flush(); // output buffer flush
+                        if (SmartSerial->expect("OK",250)) {
+                            tries_w = 5;
+                            tries = 5;
+                        }
+                        while (Serial.available() ) { Serial.read();  } // flush read buffer upto this point and discard
+                        tries_w++;
+                    } while (tries_w < 5);
+                }
+            tries++;
+            } while (tries < 5);
+        }
+        
+        LEDState = 1;
+        digitalWrite(LEDGPIO,LEDState);
+        Parameters.resetToDefaults();
+        Parameters.saveAllToEeprom();
+        
+        swSer.println(F("FACTORY RESET BUTTON PRESSED - wifi params defaulted!\n"));
+        swSer.flush();
+
+        ESP.reset();
+    }
 }

@@ -1,0 +1,7 @@
+tx mod sw test checklist:
+- upgradability
+- rfd900x S parameters have not changed
+- refresh advanced RFD900x parameters
+- wizards completes successfully 
+- PPM passthru works after runnings the wizard
+- factory reset
