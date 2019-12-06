@@ -40,6 +40,11 @@
 #include "mavesp8266_parameters.h"
 #include "mavesp8266_component.h"
 
+// in txmod it makes no sense to send RADIO_STATUS as the RFD900x is
+// already sending them. Sending them twice just leads to confusing
+// and incorrect status
+#define RADIO_STATUS_ENABLE 0
+
 //---------------------------------------------------------------------------------
 MavESP8266GCS::MavESP8266GCS()
     : _udp_port(DEFAULT_UDP_HPORT)
@@ -234,6 +239,7 @@ MavESP8266GCS::sendMessageRaw(uint8_t *buffer, int len)
 void
 MavESP8266GCS::_sendRadioStatus()
 {
+#if RADIO_STATUS_ENABLE
     linkStatus* st = _forwardTo->getStatus();
     uint8_t rssi = 0;
     uint8_t lostVehicleMessages = 100;
@@ -269,6 +275,7 @@ MavESP8266GCS::_sendRadioStatus()
 
     _sendSingleUdpMessage(&msg);
     _status.radio_status_sent++;
+#endif // RADIO_STATUS_SENT
 }
 
 //---------------------------------------------------------------------------------
